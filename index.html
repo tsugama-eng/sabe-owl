@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)</title>
+    <link rel="icon" type="image/png" href="save-owl.png">
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
+        .app-container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        h2 { font-size: 24px; color: #2c3e50; border-bottom: 2px solid #2980b9; padding-bottom: 8px; margin-bottom: 20px; }
+        h3 { font-size: 18px; color: #34495e; margin-top: 10px; border-bottom: 1px solid #cbd5e0; padding-bottom: 5px; }
+        /* タイトル全体を横並び＆中央揃えにするコンテナ */
+        .main-title-container {
+            display: flex;
+            align-items: center;
+            gap: 12px; /* 文字とロゴの間の隙間 */
+        }
+        
+        /* タイトル右側のロゴ用のスタイル */
+        .title-logo {
+            height: 54px; /* タイトルの文字の高さ（h2）に自然になじむサイズ */
+            width: auto;  /* 縦横比を維持 */
+            object-fit: contain;
+            /* もしロゴ画像の背景が透明（透過PNG）ではない場合、ここで少し余白を調整できます */
+        }
+        
+        /* I/O Section */
+        .io-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .drop-box { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f7fafc; cursor: pointer; transition: all 0.2s; }
+        .drop-box:hover { border-color: #2980b9; background: #ebf8ff; }
+        .io-label { font-weight: bold; color: #4a5568; display: block; margin-bottom: 6px; font-size: 14px; }
+        
+        /* Sequence Manager Component */
+        .manager-box { background: #edf2f7; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #e2e8f0; }
+        .manager-title { font-weight: bold; font-size: 13px; color: #4a5568; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .manager-title-static {
+            font-size: 12px;
+            font-weight: bold;
+            color: #4a5568;
+            margin-top: 14px;
+            margin-bottom: 6px;
+        }
+        .sequence-editor { width: 100%; height: 120px; font-family: monospace; font-size: 12px; border: 1px solid #cbd5e0; border-radius: 4px; padding: 8px; box-sizing: border-box; background: #fff; resize: vertical; }
+        .checklist-container { max-height: 120px; overflow-y: auto; background: white; border: 1px solid #cbd5e0; border-radius: 4px; padding: 8px; margin-bottom: 8px; }
+        .check-item { display: flex; align-items: center; font-size: 13px; margin-bottom: 4px; font-family: monospace; }
+        .check-item input { margin-right: 8px; cursor: pointer; }
+        .update-btn { background: #4a5568; color: white; border: none; padding: 4px 12px; font-size: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .update-btn:hover { background: #2d3748; }
+
+        /* Control UI */
+        .action-area { text-align: center; margin: 35px 0 25px; }
+        #runBtn { background-color: #2980b9; color: white; border: none; padding: 12px 50px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        #runBtn:hover { background-color: #1f618d; }
+        #runBtn:disabled { background-color: #cbd5e0; cursor: not-allowed; }
+        #status { font-style: italic; color: #718096; margin-top: 10px; font-size: 14px; font-weight: bold; }
+
+        /* Downstream Aggregator Section */
+        .aggregator-panel { background: #f8fafc; border: 1px solid #cbd5e0; border-radius: 8px; padding: 20px; margin-top: 30px; display: none; }
+        .param-grid { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; font-size: 13px; flex-wrap: wrap; }
+        .param-input { width: 80px; padding: 4px 8px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; }
+        .action-btn { background-color: #27ae60; color: white; border: none; padding: 8px 20px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .action-btn:hover { background-color: #219653; }
+        .chart-box { background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin: 15px 0; text-align: center; min-height: 200px; }
+        
+        /* Report Tables and Visual Layouts */
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; table-layout: fixed; word-wrap: break-word; }
+        th, td { border: 1px solid black; padding: 10px; text-align: center; }
+        th { background-color: #f2f2f2; font-size: 14px; }
+        .alignment-container { display: flex; flex-direction: column; align-items: center; margin-top: 10px; width: 100%; }
+        .bar-container { width: 80%; position: relative; height: 20px; background-color: lightgray; margin: 5px 0; border-radius: 3px; }
+        .query-hit { position: absolute; height: 100%; background-color: blue; opacity: 0.6; border-radius: 3px; }
+        .mismatch-line { position: absolute; height: 100%; background-color: red; opacity: 1; width: 2px; transition: transform 0.1s; cursor: pointer; }
+        .mismatch-line:hover { transform: scaleX(3); background-color: darkred; }
+        .label { margin: 5px 0; padding-top: 2px; font-size: 14px; text-align: center; }
+        
+        .alignment-text-block { 
+            font-family: monospace; 
+            white-space: pre; 
+            text-align: left; 
+            width: 80%; 
+            overflow-x: auto; 
+            margin-top: 10px; 
+            background: #1e1e1e; 
+            color: #f8f8f2; 
+            padding: 15px; 
+            border-radius: 6px;
+            box-sizing: border-box;
+            line-height: 1.4;
+        }
+        
+        summary { font-weight: bold; cursor: pointer; padding: 10px; background: #eee; border: 1px solid #ccc; text-align: left; width: 80%; margin: 10px auto 0; box-sizing: border-box; }
+        .mismatch-list-box { text-align: left; width: 80%; margin: 0 auto; padding: 10px 20px; border: 1px solid #ccc; border-top: none; box-sizing: border-box; font-family: monospace; background: #fff; list-style-type: square; }
+        .mismatch-list-box li { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px dashed #ddd; }
+        .highlight-target:target { background-color: #ffeb3b; padding: 4px; border-radius: 2px; color: black; border: 1px solid #ffe066; font-weight: bold; }
+        .ref-link { color: #2980b9; font-weight: bold; text-decoration: none; }
+        .ref-link:hover { text-decoration: underline; }
+        .bulk-ctrl-container {
+            display: inline-block;
+            font-size: 12.5px;
+            color: #a0aec0;
+            margin-left: 8px;
+            font-weight: normal;
+        }
+        .bulk-btn {
+            color: #3182ce;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .bulk-btn:hover {
+            color: #2b6cb0;
+        }
+        .bulk-btn-danger {
+            color: #e53e3e;
+            cursor: pointer;
+            text-decoration: underline;
+            font-weight: bold;
+        }
+        .bulk-btn-danger:hover {
+            color: #c53030;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h2 class="main-title-container">
+        <span>🧬 SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)</span>
+        <!-- タイトルの右側にロゴを配置 -->
+        <img src="save-owl.png" alt="SAVE-OWL Logo" class="title-logo">
+    </h2>
+    
+    <div class="io-section">
+        <!-- Left Panel: Reference Sequences Management -->
+        <div>
+            <span class="io-label">① Reference FASTA (Batch Upload Supported)</span>
+            <div class="drop-box" id="refDropZone">
+                Drop files here or click to select
+                <input type="file" id="refFile" multiple style="display:none;">
+            </div>
+            
+            <div class="manager-box" id="refManager" style="display:none;">
+                <div class="manager-title">
+                    <div>
+                        <span>Selected References</span>
+                        <div class="bulk-ctrl-container">
+                            <span class="bulk-btn" id="refCheckAll">All</span> / 
+                            <span class="bulk-btn" id="refUncheckAll">None</span> | 
+                            <!-- 追加：Clearボタン -->
+                            <span class="bulk-btn-danger" id="refClearAll">Clear</span>
+                        </div>
+                    </div>
+                    <button class="update-btn" id="refUpdateBtn">Apply Selection to Textbox</button>
+                </div>
+                <div class="checklist-container" id="refChecklist"></div>
+            </div>
+    
+            <div class="editor-container">
+                <div class="manager-title-static">Active Reference Sequences (Directly Editable)</div>
+                <textarea class="sequence-editor" id="refTextArea" placeholder=">Reference_1&#10;ATGC..."></textarea>
+            </div>
+        </div>
+    
+        <!-- Right Panel: Query Sequences Management -->
+        <div>
+            <span class="io-label">② Query FASTA (Batch Upload Supported)</span>
+            <div class="drop-box" id="queryDropZone">
+                Drop files here or click to select
+                <input type="file" id="queryFiles" multiple style="display:none;">
+            </div>
+            
+            <div class="manager-box" id="queryManager" style="display:none;">
+                <div class="manager-title">
+                    <div>
+                        <span>Selected Queries</span>
+                        <div class="bulk-ctrl-container">
+                            <span class="bulk-btn" id="queryCheckAll">All</span> / 
+                            <span class="bulk-btn" id="queryUncheckAll">None</span> | 
+                            <!-- 追加：Clearボタン -->
+                            <span class="bulk-btn-danger" id="queryClearAll">Clear</span>
+                        </div>
+                    </div>
+                    <button class="update-btn" id="queryUpdateBtn">Apply Selection to Textbox</button>
+                </div>
+                <div class="checklist-container" id="queryChecklist"></div>
+            </div>
+    
+            <div class="editor-container">
+                <div class="manager-title-static">Active Query Sequences (Directly Editable)</div>
+                <textarea class="sequence-editor" id="queryTextArea" placeholder=">Query_1&#10;ATGC..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-area">
+        <button id="runBtn">Run Batch Alignment</button>
+        <div id="status">Please provide reference and query sequences to begin the analysis.</div>
+    </div>
+
+    <!-- ③ Advanced Mismatch Aggregator Section (Reveals post-run) -->
+    <div class="aggregator-panel" id="aggregatorPanel">
+        <h3>📊 ③ Mismatch Aggregator Dashboard</h3>
+        <p style="font-size: 13px; color: #64748b; margin-top: -5px;">Downstream calculator processing automated codon metrics and frequency stacked visualizations.</p>
+        
+        <div class="param-grid">
+            <!-- 🌟 PINPOINT ADDITION: Dynamic Reference Selector -->
+            <label>Target Reference:</label>
+            <select id="targetRefSelect" style="padding: 4px 8px; border: 1px solid #cbd5e0; border-radius: 4px; font-weight: bold; background: white;"></select>
+        
+            <label>X-Axis Bounds: Min Position</label>
+            <input type="number" id="xminInput" class="param-input" value="1">
+            <label>Max Position</label>
+            <input type="number" id="xmaxInput" class="param-input" value="1000">
+            <button id="aggregateBtn" class="action-btn">Count and Plot Mismatches</button>
+            <button id="downloadCsvBtn" class="action-btn" style="background-color: #34495e;">Download Mismatch CSV</button>
+        </div>
+        
+        <div id="aggStatus" style="font-size: 13px; font-weight: bold; color: #27ae60; margin-bottom: 10px;"></div>
+        
+        <!-- Stacked Vector Plot Map Output Bounding Frame -->
+        <div class="chart-box" id="chartOutput">
+            <p style="color: #94a3b8; font-style: italic; padding-top: 40px;">Click 'Count and Plot Mismatches' to generate the Matplotlib-grade vector distribution graphic tracks...</p>
+        </div>
+    </div>
+
+    <div id="reportView"></div>
+        <!-- 📄 Academic Documentation & Operation Manual Section -->
+    <style>
+        .help-panel { background: #ffffff; border: 1px solid #cbd5e0; border-radius: 8px; padding: 25px; margin-top: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .help-header { font-size: 18px; color: #2c3e50; border-bottom: 2px solid #718096; padding-bottom: 6px; margin-bottom: 15px; font-weight: bold; }
+        .help-sub { font-size: 14px; font-weight: bold; color: #34495e; margin-top: 15px; margin-bottom: 5px; }
+        .help-text { font-size: 13px; color: #4a5568; line-height: 1.6; margin-bottom: 10px; text-align: justify; }
+        .help-list { font-size: 13px; color: #4a5568; margin-left: 20px; margin-bottom: 15px; line-height: 1.6; }
+        .help-list li { margin-bottom: 4px; }
+        .badge-core { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: bold; color: #2d3748; }
+    </style>
+
+    <div class="help-panel" id="documentationPanel">
+        <div class="help-header">📖 System Architecture & Operational Manual</div>
+        
+        <p class="help-text">
+            This platform acts as an un-gated, client-side single-page application (SPA) designed for rapid batch sequence mutation analytics, population frequency compounding, and scalable vector graphics (SVG) generation. By implementing all algorithmic components directly in the browser runtime, it eliminates remote data transfers, preserving data privacy.
+        </p>
+
+        <div class="download-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #4A90E2; border-radius: 4px;">
+            <span style="font-weight: bold; display: block; margin-bottom: 5px;">💾 Run Offline / Standalone Version</span>
+            <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
+                You can download this entire web application as a single file and run it directly on your local machine without an internet connection.
+            </span>
+            <a href="index.html" download="SAVE-OWL-Lite.html" class="badge-core" style="display: inline-block; padding: 6px 12px; background-color: #4A90E2; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
+                📥 Download Standalone HTML
+            </a>
+        </div>
+
+        <div class="help-sub">1. Sequence Input Parsing & Core Caching Engine</div>
+        <p class="help-text">
+            The platform supports multiple selection and drag-and-drop file inputs in both standard and multi-FASTA formats. Upon ingestion, sequence records are automatically parsed and appended to the tracking system cache.
+        </p>
+        <ul class="help-list">
+            <li><b>Batch Checkboxes</b>: Act as a master cache repository. Checking or un-checking names updates the downstream analysis scope options.</li>
+            <li><b>Textarea Editing (Critical Principle)</b>: The text boxes are the <b>single source of truth</b> for the alignment engine. Clicking <i>"Apply Selection to Textbox"</i> updates FASTA headers and sequence strings inside these text boxes. The backend algorithm will read and align exactly what is visible in these boxes when executed. Users can directly type, erase, or alter sequences inside these boxes before executing the analysis.</li>
+        </ul>
+
+        <div class="help-sub">2. Automatic Reverse Complement Alignment</div>
+        <p class="help-text">
+            Clicking <i>"Run Batch Alignment"</i> starts the computation of a cross-pivot matrix between all items in the query box against all items in the reference box using a native matrix-instantiated <b>Smith-Waterman (Local Alignment) algorithm</b>.
+        </p>
+        <ul class="help-list">
+            <li><b>Strand Autodetection</b>: For each individual query sequence, the system computes alignment scores for both the forward and reverse complement (RC) orientations. The orientation yielding the higher score is automatically selected.</li>
+            <li><b>Reverse Complement Reporting Standardization</b>: To ensure accurate profiling and aggregation of mismatches based on the reference coordinate system, if the RC orientation yields the higher score, the system automatically replaces the query sequence with its RC counterpart. Consequently, all subsequent mismatch and gap identifications are reported relative to this replaced RC sequence.</li>
+        </ul>
+
+        <div class="help-sub">3. Masking No-coverage Regions</div>
+        <p class="help-text">
+             Any reference coordinates falling outside the aligned range (before the first aligned base or after the last aligned base) are masked with a light gray background labeled <span class="badge-core">No Alignment Coverage</span>. This visual aid allows you to immediately distinguish between a true sequence conservation and a simple lack of data coverage.
+        </p>
+
+        <div class="help-sub">4. Mismatch Aggregation & Plotting</div>
+        <p class="help-text">
+            Clicking <i>"Count and Plot Mismatches"</i> analyzes mismatches within your selected reference gene or region. The tool automatically counts recurring mismatches across all samples and displays them in a stacked bar chart. Click <i>"Download SVG"</i> to download the chart data in the SVG format. Click <i>"Download Mismatch CSV"</i> to download the mismatch data and its codon translation impact (missense, nonsense, or silent). This features help you identify mismatch hotspots and view the distribution of mismatch types.
+        </p>
+    </div>
+
+</div>
+
+<script>
+    let rawReferencesList = [];
+    let rawQueriesList = [];
+    let discoveredMismatchesCache = []; // Shared cross-alignment data registry pipeline array
+
+    // Setup Drag and Drop / Selection listeners
+    setupIO('refDropZone', 'refFile', async (files) => {
+        for (let f of files) {
+            const text = await f.text();
+            parseAndAppendSequences(text, f.name, rawReferencesList);
+        }
+        renderChecklist('refChecklist', rawReferencesList);
+        updateTextAreaFromChecklist('refChecklist', 'refTextArea', rawReferencesList);
+        document.getElementById('refManager').style.display = 'block';
+        checkReady();
+    });
+
+    setupIO('queryDropZone', 'queryFiles', async (files) => {
+        for (let f of files) {
+            const text = await f.text();
+            parseAndAppendSequences(text, f.name, rawQueriesList);
+        }
+        renderChecklist('queryChecklist', rawQueriesList);
+        updateTextAreaFromChecklist('queryChecklist', 'queryTextArea', rawQueriesList);
+        document.getElementById('queryManager').style.display = 'block';
+        checkReady();
+    });
+
+    document.getElementById('refUpdateBtn').addEventListener('click', () => {
+        updateTextAreaFromChecklist('refChecklist', 'refTextArea', rawReferencesList);
+    });
+    document.getElementById('queryUpdateBtn').addEventListener('click', () => {
+        updateTextAreaFromChecklist('queryChecklist', 'queryTextArea', rawQueriesList);
+    });
+
+    function setupIO(zoneId, inputId, callback) {
+        const zone = document.getElementById(zoneId);
+        const input = document.getElementById(inputId);
+        zone.addEventListener('click', () => input.click());
+        zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#2980b9'; });
+        zone.addEventListener('dragleave', () => zone.style.borderColor = '#cbd5e0');
+        zone.addEventListener('drop', (e) => { e.preventDefault(); zone.style.borderColor = '#cbd5e0'; callback(e.dataTransfer.files); });
+        input.addEventListener('change', (e) => callback(e.target.files));
+    }
+
+    function parseAndAppendSequences(text, fileName, targetList) {
+        const trimmedText = text.trim();
+        if (!trimmedText) return;
+        
+        const lines = trimmedText.split(/\r?\n/);
+        if (lines.length === 0) return;
+
+        if (lines[0].trim().startsWith('>')) {
+            let currentHeader = "";
+            let currentSeq = [];
+            for (let line of lines) {
+                const currentLine = line.trim();
+                if (currentLine.startsWith('>')) {
+                    if (currentHeader) {
+                        targetList.push({ id: fileName + "_" + currentHeader, file: fileName, header: currentHeader, seq: currentSeq.join('').replace(/[^A-Za-z-]/g, '').toUpperCase() });
+                    }
+                    currentHeader = currentLine.substring(1);
+                    currentSeq = [];
+                } else {
+                    currentSeq.push(currentLine);
+                }
+            }
+            if (currentHeader) {
+                targetList.push({ id: fileName + "_" + currentHeader, file: fileName, header: currentHeader, seq: currentSeq.join('').replace(/[^A-Za-z-]/g, '').toUpperCase() });
+            }
+        } else {
+            const seq = lines.join('').replace(/[^A-Za-z-]/g, '').toUpperCase();
+            targetList.push({ id: fileName, file: fileName, header: fileName, seq: seq });
+        }
+    }
+
+    function renderChecklist(containerId, list) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+        list.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'check-item';
+            div.innerHTML = `<label><input type="checkbox" data-index="${index}" checked> [${item.file}] ${item.header} (${item.seq.length} bp)</label>`;
+            container.appendChild(div);
+        });
+    }
+
+    function updateTextAreaFromChecklist(checklistId, textAreaId, list) {
+        const checkboxes = document.getElementById(checklistId).querySelectorAll('input[type="checkbox"]');
+        let textBuffer = "";
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const idx = parseInt(cb.getAttribute('data-index'));
+                const item = list[idx];
+                textBuffer += `>${item.header}\n${item.seq}\n`;
+            }
+        });
+        document.getElementById(textAreaId).value = textBuffer;
+    }
+
+    function checkReady() {
+        // Evaluate the raw textbox contexts safely to see if strings are active
+        const refText = document.getElementById('refTextArea').value;
+        const queryText = document.getElementById('queryTextArea').value;
+        if (rawReferencesList.length > 0 && rawQueriesList.length > 0) {
+            document.getElementById('runBtn').disabled = false;
+            document.getElementById('status').innerText = 'Ready to execute cross-alignment analysis.';
+        }
+    }
+
+    // Analysis trigger using the live updated textbox inputs
+    document.getElementById('runBtn').addEventListener('click', () => {
+        const statusEl = document.getElementById('status');
+        const reportEl = document.getElementById('reportView');
+        //statusEl.innerText = 'Calculating cross-alignments using Smith-Waterman algorithm...';
+        reportEl.innerHTML = '';
+        discoveredMismatchesCache = []; // Clear old run mutations cache registry records
+
+        // バリデーション（入力チェック）
+        if (rawReferencesList.length === 0 && document.getElementById('refTextArea').value.trim() === '') {
+            alert('Please provide at least one Reference sequence (via file upload or direct text entry).');
+            return;
+        }
+        
+        if (rawQueriesList.length === 0 && document.getElementById('queryTextArea').value.trim() === '') {
+            alert('Please provide at least one Query sequence (via file upload or direct text entry).');
+            return;
+        }
+
+        try {
+            const activeRefs = parseTextAreaData(document.getElementById('refTextArea').value);
+            const activeQueries = parseTextAreaData(document.getElementById('queryTextArea').value);
+
+            if (activeRefs.length === 0 || activeQueries.length === 0) {
+                statusEl.innerText = 'Error: Valid reference or query sequences are missing inside the textboxes.';
+                return;
+            }
+
+            let htmlBuffer = "";
+
+            activeQueries.forEach((qItem, qIdx) => {
+                let bestMatch = null;
+                let bestScore = -1;
+                let bestStrand = 'forward';
+                let finalQuerySeq = qItem.seq; // 🌟 実際に解析に使用するクエリ配列
+
+                activeRefs.forEach(rItem => {
+                    // ① フォワード鎖の計算
+                    let fAlign = smithWaterman(qItem.seq, rItem.seq);
+                    if (fAlign.score > bestScore) {
+                        bestScore = fAlign.score;
+                        bestMatch = { align: fAlign, ref: rItem };
+                        bestStrand = 'forward';
+                        finalQuerySeq = qItem.seq;
+                    }
+                    // ② リバースコンプリメント鎖の計算
+                    const qSeqRC = reverseComplement(qItem.seq);
+                    let rAlign = smithWaterman(qSeqRC, rItem.seq);
+                    if (rAlign.score > bestScore) {
+                        bestScore = rAlign.score;
+                        bestMatch = { align: rAlign, ref: rItem };
+                        bestStrand = 'reverse complement';
+                        finalQuerySeq = qSeqRC; // 🌟 RC鎖の方がスコアが高ければ、クエリをRC後の配列に確定
+                    }
+                });
+
+                if (!bestMatch || bestScore <= 0) return;
+
+                const align = bestMatch.align;
+                const rItem = bestMatch.ref;
+
+                // 🌟 ここが重要！
+                // RC鎖が選ばれた場合、すでにfinalQuerySeqはRC後の配列（A193GがC200Tのように美しく反転した状態）になっています。
+                // したがって、これ以降の座標計算は、順鎖（forward）と「全く同じシンプルなカウントアップ」で100%正確に処理できます！
+                const qStart = align.qStart + 1;
+                const qEnd = align.qEnd + 1;
+                const rStart = align.rStart + 1;
+                const rEnd = align.rEnd + 1;
+                const qLen = finalQuerySeq.length; // RC後の長さ
+                const rLen = rItem.seq.length;
+
+                // --- 【REVERSE COMPLEMENT ALIGNMENT RESILIENCY ENGINE】 ---
+                // --- 【解決版】RC後配列を基準とした完全正方向トラッキングシステム ---
+                let alignmentBar = "";
+                let mismatches = [];
+                
+                // クエリもリファレンスも、アライメントの左端から右端に向かって普通にカウントアップします
+                let currentQPos = qStart;
+                let currentSPos = rStart;
+
+                for (let i = 0; i < align.queryAligned.length; i++) {
+                    const qB = align.queryAligned[i];
+                    const rB = align.refAligned[i];
+
+                    if (qB === rB && qB !== '-') {
+                        alignmentBar += "|";
+                    } else {
+                        alignmentBar += " ";
+                        
+                        // ご要望通り、RCした後の配列で見えている文字（qB）をそのままストレートに変異として記録します！
+                        mismatches.push({
+                            q_pos: qB === '-' ? "GAP" : currentQPos,
+                            s_pos: rB === '-' ? "GAP" : currentSPos,
+                            q_base: qB, 
+                            s_base: rB,
+                            absolute_ref_pos: rB === '-' ? null : currentSPos 
+                        });
+
+                        // 裏側の集計用キャッシュ（discoveredMismatchesCache）へ送るデータも完全に一致させます
+                        discoveredMismatchesCache.push({
+                            query_file: qItem.name,
+                            query_name: qItem.name,
+                            matched_ref: rItem.name,
+                            subject_pos: rB === '-' ? "GAP" : currentSPos,
+                            ref_base: rB,
+                            mut_base: qB,
+                            query_ref_start: rStart,
+                            query_ref_end: rEnd
+                        });
+                    }
+
+                    // ギャップでなければ普通に1ずつ進めるだけの、最もバグの起きない綺麗な処理です
+                    if (qB !== '-') currentQPos++;
+                    if (rB !== '-') currentSPos++;
+                }
+
+                // --- 描画用のサイズと位置の計算 ---
+                const hitWidth = ((qEnd - qStart + 1) / qLen) * 100;
+                const hitLeft = ((qStart - 1) / qLen) * 100;
+                const sampleId = `sample_${qIdx}`;
+
+                htmlBuffer += `<table>`;
+                htmlBuffer += `<tr><th>Query Name</th><th>Best Match Reference Name</th><th>Strand</th></tr>`;
+                htmlBuffer += `<tr><td><b>${qItem.name}</b></td><td><b>${rItem.name}</b></td><td>${bestStrand}</td></tr>`;
+                htmlBuffer += `<tr><th>Query Range</th><th>Reference Range</th><th>Query Length</th><th>Reference Length</th></tr>`;
+                htmlBuffer += `<tr><td>${qStart} to ${qEnd}</td><td>${rStart} to ${rEnd}</td><td>${qLen}</td><td>${rLen}</td></tr>`;
+                
+                htmlBuffer += `<tr><td colspan='4'>`;
+                htmlBuffer += `<div class='alignment-container'>`;
+                
+                // 1. 変異マップ（赤い縦線）の描画（リファレンス上の絶対座標ベース）
+                htmlBuffer += `<div class='bar-container'>`;
+                const refHitLeft = ((rStart - 1) / rLen) * 100;
+                const refHitWidth = ((rEnd - rStart + 1) / rLen) * 100;
+                htmlBuffer += `<div class='query-hit' style='left: ${refHitLeft}%; width: ${refHitWidth}%;'></div>`;
+                
+                mismatches.forEach((mm, mIdx) => {
+                    if (mm.absolute_ref_pos !== null) {
+                        const mismatchPercentage = ((mm.absolute_ref_pos - 1) / rLen) * 100;
+                        const linkId = `${sampleId}_mut_${mIdx}`;
+                        htmlBuffer += `<a href='#${linkId}'><div class='mismatch-line' style='left: ${mismatchPercentage}%;' title='Subject Pos: ${mm.s_pos} (${mm.s_base}->${mm.q_base})'></div></a>`;
+                    }
+                });
+                htmlBuffer += `</div>`;
+                htmlBuffer += `<p class='label'>Mutation Map (Click red lines to jump to details)</p>`;
+
+                
+                // 2. Alignment code block display
+                htmlBuffer += `<div class='alignment-text-block'>`;
+                htmlBuffer += `Query:   ${align.queryAligned}\n`;
+                htmlBuffer += `         ${alignmentBar}\n`;
+                htmlBuffer += `Subject: ${align.refAligned}\n`;
+                htmlBuffer += `</div>`;
+                htmlBuffer += `</div>`; 
+                
+                // 3. Detailed mutation list accordion (CLOSED by default for clean paper presentation)
+                if (mismatches.length > 0) {
+                    htmlBuffer += `<details>`;
+                    htmlBuffer += `<summary>▼ Detailed Mismatches & Indels List (${mismatches.length} items)</summary>`;
+                    htmlBuffer += `<ul class='mismatch-list-box'>`;
+                    mismatches.forEach((mm, mIdx) => {
+                        const linkId = `${sampleId}_mut_${mIdx}`;
+                        htmlBuffer += `<li id='${linkId}' class='highlight-target'>`;
+                        htmlBuffer += `Query Position: ${mm.q_pos} (<span style="color:red;font-weight:bold;">${mm.q_base}</span>) &harr; Reference Position: ${mm.s_pos} (${mm.s_base})`;
+                        htmlBuffer += `</li>`;
+                    });
+                    htmlBuffer += `</ul></details>`;
+                } else {
+                    htmlBuffer += `<p class='label' style='color: green; font-weight: bold; margin-top: 10px;'>No mismatches found.</p>`;
+                }
+                
+                htmlBuffer += `</td></tr></table><br><br>`;
+            });
+
+            reportEl.innerHTML = htmlBuffer;
+            statusEl.innerText = 'Batch sequence alignment analysis completed successfully!';
+            
+            // Show Downstream Aggregator Control UI Panel space
+            document.getElementById('aggregatorPanel').style.display = 'block';
+            document.getElementById('aggStatus').innerText = `Registered ${discoveredMismatchesCache.length} mutations. Select a target reference to run aggregation pipelines.`;
+
+            // 🌟 PINPOINT FIX: Populate selector menu and configure auto-bounds safely
+            const selectEl = document.getElementById('targetRefSelect');
+            selectEl.innerHTML = ""; // Clear old options
+
+            if (activeRefs && activeRefs.length > 0) {
+                activeRefs.forEach(ref => {
+                    const opt = document.createElement('option');
+                    opt.value = ref.name;
+                    opt.textContent = `${ref.name} (${ref.seq.length} bp)`;
+                    selectEl.appendChild(opt);
+                });
+
+                // Set up event listener so changing the dropdown updates the max coordinate bound instantly
+                const updateBoundsHandler = () => {
+                    const selectedName = selectEl.value;
+                    const chosenRef = activeRefs.find(r => r.name === selectedName);
+                    if (chosenRef) {
+                        document.getElementById('xminInput').value = "1";
+                        document.getElementById('xmaxInput').value = String(chosenRef.seq.length);
+                    }
+                };
+                
+                selectEl.onchange = updateBoundsHandler;
+                updateBoundsHandler(); // Trigger once initially
+
+                // Auto-trigger the chart generation immediately on analysis complete
+                document.getElementById('aggregateBtn').click();
+            }
+        } catch (err) {
+            statusEl.innerText = 'An error occurred during runtime execution.';
+            reportEl.innerHTML = `<pre style="color:red; padding:10px; background:#fff5f5;">${err.stack || err}</pre>`;
+        }
+    });
+
+    // --- Ported Python Downstream Aggregator Core Backend Logic Blocks ---
+    let summaryDataRegistry = [];
+
+// REPLACE the beginning of your 'aggregateBtn' listener down to the aggregateMap generation:
+    // Downstream Aggregator Script Loop (Fixed Variable Ordering & Reference Isolation)
+    document.getElementById('aggregateBtn').addEventListener('click', () => {
+        const xmin = parseInt(document.getElementById('xminInput').value) || 0;
+        const xmax = parseInt(document.getElementById('xmaxInput').value) || 999999;
+        const selectedRefName = document.getElementById('targetRefSelect').value; 
+        
+        const refText = document.getElementById('refTextArea').value;
+        const activeRefs = parseTextAreaData(refText);
+
+        if (activeRefs.length === 0) {
+            alert("Error: Missing reference nucleotide sequence matrix context inside text box.");
+            return;
+        }
+
+        // 1. First, cleanly pull out and isolate the chosen reference string track object
+        const currentSelectedRef = activeRefs.find(r => r.name === selectedRefName);
+        if (!currentSelectedRef) {
+            alert(`Selected reference "${selectedRefName}" not found in active textbox records.`);
+            return;
+        }
+        
+        const cds_seq = currentSelectedRef.seq; 
+
+        // 2. Determine strand rules and resolve the calculation sequence BEFORE mapping data
+        let is_reverse = false;
+        const standard_start = translateCodonString(cds_seq.substring(0,3));
+        const reverse_start = translateCodonString(reverseComplement(cds_seq.substring(cds_seq.length - 3)));
+        if (standard_start !== "M" && reverse_start === "M") {
+            is_reverse = true;
+        }
+        const cds_seq_calc = is_reverse ? reverseComplement(cds_seq) : cds_seq;
+
+        // 3. Group mutations logically, filtering out any variants belonging to other genes
+        let aggregateMap = {};
+        discoveredMismatchesCache.forEach(m => {
+            if (m.subject_pos === "GAP" || m.matched_ref !== selectedRefName) return; 
+            const pos = parseInt(m.subject_pos);
+            const subType = `${m.ref_base}->${m.mut_base}`;
+            const key = `${pos}_${subType}`;
+
+            if (!aggregateMap[key]) {
+                aggregateMap[key] = {
+                    subject_pos: pos,
+                    ref_base: m.ref_base,
+                    mut_base: m.mut_base,
+                    sub_type: subType,
+                    frequency: 0,
+                    samples: new Set()
+                };
+            }
+            aggregateMap[key].frequency += 1;
+            aggregateMap[key].samples.add(m.query_name);
+        });
+
+        // 4. Map variant groups into array rows. `cds_seq_calc` is now safely fully defined!
+        summaryDataRegistry = Object.values(aggregateMap).map(row => {
+            const trans = translateCodonMutationJS(cds_seq_calc, row.subject_pos, row.mut_base, is_reverse);
+            return {
+                reference_name: selectedRefName, 
+                subject_pos: row.subject_pos,
+                ref_base: row.ref_base,
+                mut_base: row.mut_base,
+                sub_type: row.sub_type,
+                frequency: row.frequency,
+                amino_acid_mutation: trans.label,
+                codon_translation: trans.detail,
+                detected_in_samples: Array.from(row.samples).sort().join(', ')
+            };
+        });
+
+        // Sort descending by frequency counts metrics matching python output rules
+        summaryDataRegistry.sort((a, b) => b.frequency - a.frequency);
+
+        const filteredSummary = summaryDataRegistry.filter(r => r.subject_pos >= xmin && r.subject_pos <= xmax);
+        const uniqueSamplesCount = new Set(discoveredMismatchesCache.filter(m => m.matched_ref === selectedRefName).map(m => m.query_name)).size || 1;
+
+        // 🌟 PINPOINT COVERAGE DETECTION: Track the collective boundaries where alignments actually hit
+        // 🌟 【修正版・解決ルート】PINPOINT COVERAGE DETECTION: アライメントの真の最外境界を正しく取得
+        const activeRefHits = discoveredMismatchesCache.filter(m => m.matched_ref === selectedRefName && m.subject_pos !== "GAP");
+        let alignmentMinHit = xmin;
+        let alignmentMaxHit = xmax;
+        
+        if (activeRefHits.length > 0) {
+            // ミスマッチの場所ではなく、各データが持っている「クエリ全体のアライン開始/終了座標」を正しく取り出す
+            const startPositions = activeRefHits.map(m => parseInt(m.query_ref_start || m.subject_pos)); 
+            const endPositions = activeRefHits.map(m => parseInt(m.query_ref_end || m.subject_pos));
+            
+            // 全データの中で、最も左の端（最小値）と、最も右の端（最大値）を決定する
+            alignmentMinHit = Math.min(...startPositions);
+            alignmentMaxHit = Math.max(...endPositions);
+        }
+
+        // 最後に、ユーザーが指定した xmin / xmax の選択範囲を超えないように安全ガードをかける
+        alignmentMinHit = Math.max(xmin, alignmentMinHit);
+        alignmentMaxHit = Math.min(xmax, alignmentMaxHit);
+
+        // Pass these boundary coordinates down as new arguments to the chart rendering engine
+        generateMatplotlibEmulationChart(filteredSummary, xmin, xmax, uniqueSamplesCount, alignmentMinHit, alignmentMaxHit);
+        
+        document.getElementById('aggStatus').innerText = `Metrics computed successfully for "${selectedRefName}". Applied bounds window filter [${xmin} to ${xmax}].`;
+    });
+
+    // High-Resolution Matplotlib Replicator (Reconstructs stacked bars, legends, grids, and labels via explicit SVG elements)
+    // High-Resolution Matplotlib Replicator (Reconstructs accurate stacked paths, grids, and legend boxes matching your target file profile)
+    function generateMatplotlibEmulationChart(data, xmin, xmax, totalSamples, alignMin, alignMax) {
+        const container = document.getElementById('chartOutput');
+        container.innerHTML = ""; // Clear baseline container space
+
+        // 🌟 ピンポイント修正：内部で cache を参照せず、完全に選別済みの 'data' のみから座標とパターンを抽出します
+        let uniquePositions = Array.from(new Set(data.map(d => d.subject_pos))).sort((a, b) => a - b);
+        let subPatternsFound = Array.from(new Set(data.map(d => d.sub_type))).sort();
+
+        if (uniquePositions.length === 0) {
+            container.innerHTML = `<p style='color:#e74c3c; padding-top:40px; font-weight:bold;'>Mutation frequency matrix empty within window parameter boundaries [${xmin} - ${xmax}].</p>`;
+            return;
+        }
+
+        const color_map = {
+            'A->G': '#1f77b4', 'G->A': '#aec7e8', 'C->T': '#ff7f0e', 'T->C': '#ffbb78',
+            'A->C': '#2ca02c', 'A->T': '#98df8a', 'C->A': '#d62728', 'C->G': '#ff9896',
+            'G->C': '#9467bd', 'G->T': '#c5b0d5', 'T->A': '#8c564b', 'T->G': '#c49c94',
+            'A->-': '#e74c3c', 'T->-': '#e74c3c', 'G->-': '#e74c3c', 'C->-': '#e74c3c'
+        };
+
+        // Replicate Matplotlib absolute plotting scale bounds box parameters
+        const margin = { top: 60, right: 220, bottom: 60, left: 75 };
+        const width = 1000 - margin.left - margin.right;
+        const height = 450 - margin.top - margin.bottom;
+
+        // Compute cumulative vector padding elevations safely
+        let posHeights = {};
+        uniquePositions.forEach(p => { posHeights[p] = 0; });
+        data.forEach(d => { posHeights[d.subject_pos] += d.frequency; });
+        
+        const maxCumulativeHeight = Math.max(...Object.values(posHeights)) || 1;
+        const yMaxRounded = Math.ceil(maxCumulativeHeight * 1.1);
+
+        // --- Assemble Matplotlib XML Text String Streams ---
+        const OFFICIAL_SVG_XMLNS = ['http:/', 'www.w3.org', '2000', 'svg'].join('/'); 
+        const OFFICIAL_XLINK_XMLNS = ['http:/', 'www.w3.org', '1999', 'xlink'].join('/');
+        const OFFICIAL_DTD_URL = ['http:/', 'www.w3.org', 'Graphics', 'SVG', '1.1', 'DTD', 'svg11.dtd'].join('/');
+        
+        let svgString = '<?xml version="1.0" encoding="utf-8" standalone="no"?>\n';
+        svgString += '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "' + OFFICIAL_DTD_URL + '">\n';
+        svgString += '<svg xmlns:xlink="' + OFFICIAL_XLINK_XMLNS + '" width="1000" height="450" viewBox="0 0 1000 450" xmlns="' + OFFICIAL_SVG_XMLNS + '" version="1.1">\n';
+
+        svgString += ` <defs>\n  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt; font-family: sans-serif;}</style>\n </defs>\n`;
+        
+        // 1. Replicate figure background patch (patch_1)
+        svgString += ` <g id="figure_1">\n  <g id="patch_1">\n   <path d="M 0 450 L 1000 450 L 1000 0 L 0 0 z" style="fill: #ffffff"/>\n  </g>\n`;
+        
+        // 2. Replicate axes plotting backplane patch (patch_2)
+        svgString += `  <g id="axes_1">\n   <g id="patch_2">\n    <path d="M ${margin.left} ${margin.top + height} L ${margin.left + width} ${margin.top + height} L ${margin.left + width} ${margin.top} L ${margin.left} ${margin.top} z" style="fill: #ffffff"/>\n   </g>\n`;
+
+        // 🌟 PINPOINT SHADING ENHANCEMENT: Render shaded gray zones where alignment tracking was unavailable
+        svgString += `   <g id="unaligned_shadow_tracks">\n`;
+        
+        // A. Left unaligned zone (From xmin to the first sequence start position)
+        if (alignMin > xmin) {
+            const unalignedWidthLeft = ((alignMin - xmin) / (xmax - xmin)) * width;
+            svgString += `    <rect x="${margin.left}" y="${margin.top}" width="${unalignedWidthLeft}" height="${height}" fill="#e2e8f0" opacity="0.5"/>\n`;
+            svgString += `    <text x="${margin.left + unalignedWidthLeft / 2}" y="${margin.top + height / 2}" text-anchor="middle" font-size="10" fill="#94a3b8" font-style="italic">No Alignment Coverage</text>\n`;
+        }
+
+        // B. Right unaligned zone (From the last sequence end position out to xmax)
+        if (alignMax < xmax) {
+            const xLeftStart = margin.left + ((alignMax - xmin) / (xmax - xmin)) * width;
+            const unalignedWidthRight = width - (((alignMax - xmin) / (xmax - xmin)) * width);
+            svgString += `    <rect x="${xLeftStart}" y="${margin.top}" width="${unalignedWidthRight}" height="${height}" fill="#e2e8f0" opacity="0.5"/>\n`;
+            svgString += `    <text x="${xLeftStart + unalignedWidthRight / 2}" y="${margin.top + height / 2}" text-anchor="middle" font-size="10" fill="#94a3b8" font-style="italic">No Alignment Coverage</text>\n`;
+        }
+        svgString += `   </g>\n`;
+
+        // 3. Replicate structural dotted grid lines backplane layer (plt.grid)
+        const yTicksCount = Math.min(yMaxRounded, 6);
+        svgString += `   <g id="matplotlib.axis_y">\n`;
+        for (let idx = 0; idx <= yTicksCount; idx++) {
+            const yVal = Math.round((yMaxRounded / yTicksCount) * idx);
+            const yPos = margin.top + height - (yVal / yMaxRounded) * height;
+            
+            // A. Dotted horizontal grid lines backing tracks
+            svgString += `    <path d="M ${margin.left} ${yPos} L ${margin.left + width} ${yPos}" stroke="#cbd5e0" stroke-dasharray="3,3" stroke-width="0.7"/>\n`;
+            
+            // 🌟 PINPOINT ADDITION: Explicit vertical axis scale tick lines (plt.yaxis.set_ticks)
+            svgString += `    <path d="M ${margin.left} ${yPos} L ${margin.left - 5} ${yPos}" stroke="#000000" stroke-width="1"/>\n`;
+            
+            // B. Y-Axis numerical tick tracker labels labels
+            svgString += `    <text x="${margin.left - 12}" y="${yPos + 4}" text-anchor="end" font-size="11" fill="#333333">${yVal}</text>\n`;
+        }
+        svgString += `   </g>\n`;
+
+
+        // 4. Replicate the sequential cumulative stack bar paths logic (plt.bar)
+        let positionBottomsRegistry = {};
+        uniquePositions.forEach(p => { positionBottomsRegistry[p] = 0; });
+
+        svgString += `   <g id="bars_stacked">\n`;
+        subPatternsFound.forEach(pattern => {
+            const patternColor = color_map[pattern] || '#7f8c8d';
+            
+            uniquePositions.forEach(pos => {
+                const matchRecord = data.find(d => d.subject_pos === pos && d.sub_type === pattern);
+                if (!matchRecord) return;
+
+                const freqVal = matchRecord.frequency;
+                const barBottom = positionBottomsRegistry[pos];
+                const barTop = barBottom + freqVal;
+                
+                const xPos = margin.left + ((pos - xmin) / (xmax - xmin)) * width;
+                const yTopPos = margin.top + height - (barTop / yMaxRounded) * height;
+                const yBottomPos = margin.top + height - (barBottom / yMaxRounded) * height;
+                const barWidthPixels = Math.max(4, (width / (xmax - xmin)) * 0.7);
+                const xLeft = xPos - barWidthPixels / 2;
+
+                // Reconstruct exact solid vector bar shapes using standard path geometry coordinates
+                svgString += `    <path d="M ${xLeft} ${yBottomPos} L ${xLeft + barWidthPixels} ${yBottomPos} L ${xLeft + barWidthPixels} ${yTopPos} L ${xLeft} ${yTopPos} z" fill="${patternColor}" stroke="#000000" stroke-width="0.5">\n`;
+                svgString += `     <title>Pos: ${pos} | Mutation: ${pattern} | Count: ${freqVal}\nAmino Acid Profile: ${matchRecord.amino_acid_mutation}</title>\n`;
+                svgString += `    </path>\n`;
+
+                positionBottomsRegistry[pos] = barTop;
+            });
+        });
+        svgString += `   </g>\n`;
+
+        // 5. Replicate horizontal axis ticks scale markers labels
+        const xTicksCount = 8;
+        svgString += `   <g id="matplotlib.axis_x">\n`;
+        for (let idx = 0; idx <= xTicksCount; idx++) {
+            const xVal = Math.round(xmin + ((xmax - xmin) / xTicksCount) * idx);
+            const xPos = margin.left + ((xVal - xmin) / (xmax - xmin)) * width;
+            svgString += `    <path d="M ${xPos} ${margin.top + height} L ${xPos} ${margin.top + height + 5}" stroke="#333333" stroke-width="1"/>\n`;
+            svgString += `    <text x="${xPos}" y="${margin.top + height + 18}" text-anchor="middle" font-size="11" fill="#333333">${xVal}</text>\n`;
+        }
+        svgString += `   </g>\n`;
+
+        // 6. Replicate solid axis bounding box spine borders outline (spine framework)
+        svgString += `   <g id="spines">\n`;
+        svgString += `    <path d="M ${margin.left} ${margin.top + height} L ${margin.left + width} ${margin.top + height} L ${margin.left + width} ${margin.top} L ${margin.left} ${margin.top} z" fill="none" stroke="#000000" stroke-width="1"/>\n`;
+        svgString += `   </g>\n`;
+
+        // 7. Titles labels strings formatting fields maps
+        svgString += `   <text x="${margin.left + width / 2}" y="${margin.top - 25}" text-anchor="middle" font-size="14" font-weight="bold" fill="#333333">Target Hotspot Profiles (Total Analysed Samples: n=${totalSamples})</text>\n`;
+        svgString += `   <text x="${margin.left + width / 2}" y="${margin.top + height + 45}" text-anchor="middle" font-size="12" fill="#333333">Sequence Coordinate (Nucleotide Position)</text>\n`;
+        svgString += `   <text transform="rotate(-90, 20, ${margin.top + height / 2})" x="20" y="${margin.top + height / 2}" text-anchor="middle" font-size="12" fill="#333333">Mutation Frequency (Recovered Colonies Count)</text>\n`;
+
+        // 8. Replicate the structured legend box matrix mapping rules
+        const legendXPos = margin.left + width + 25;
+        let legendYStart = margin.top + 15;
+        svgString += `   <g id="legend_1">\n`;
+        svgString += `    <text x="${legendXPos}" y="${legendYStart}" font-size="11" font-weight="bold" fill="#333333">Substitution Types:</text>\n`;
+
+        subPatternsFound.forEach((pattern, pIdx) => {
+            const color = color_map[pattern] || '#7f8c8d';
+            const displayLabel = pattern.includes("->-") ? "Indel (Deletion)" : pattern;
+            const itemYPos = legendYStart + 20 + (pIdx * 20);
+            svgString += `    <path d="M ${legendXPos} ${itemYPos} L ${legendXPos + 14} ${itemYPos} L ${legendXPos + 14} ${itemYPos - 10} L ${legendXPos} ${itemYPos - 10} z" fill="${color}" stroke="#000000" stroke-width="0.5"/>\n`;
+            svgString += `    <text x="${legendXPos + 22}" y="${itemYPos}" font-size="11" fill="#333333">${displayLabel}</text>\n`;
+        });
+        svgString += `   </g>\n  </g>\n </g>\n</svg>`;
+
+        // --- 【超重要】画面表示用とダウンロード用を完全に分離 ---
+        
+        // 1. ページ上への描画（インラインSVGとしてブラウザに解釈させる）
+        const previewContainer = document.createElement("div");
+        previewContainer.style.width = "100%";
+        previewContainer.style.overflowX = "auto";
+        previewContainer.innerHTML = svgString; 
+        container.appendChild(previewContainer);
+
+        // 2. ダウンロード用ボタンの設置
+        // Build the download button block using clean raw string data link streams
+        const downloadSvgBtn = document.createElement("button");
+        downloadSvgBtn.className = "action-btn";
+        downloadSvgBtn.style.marginTop = "15px";
+        downloadSvgBtn.style.backgroundColor = "#e67e22";
+        downloadSvgBtn.innerText = "Download SVG";
+        
+        // 🌟 このクリックリスナーの中身を完全に空白・改行なしのクリーンなストリームに修正します
+        downloadSvgBtn.addEventListener('click', () => {
+            // 💡 1文字目から狂いなくスタートさせるため、バックティック内の改行をすべて完全に排除
+            let finalSvgOutput = '<?xml version="1.0" encoding="utf-8" standalone="no"?>';
+            finalSvgOutput += '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://w3.org">';
+            
+            // HTML内のSVGソースの開始点（<svg）を正確に探して結合
+            const svgStartIndex = svgString.indexOf('<svg');
+            if (svgStartIndex !== -1) {
+                finalSvgOutput += svgString.substring(svgStartIndex);
+            } else {
+                finalSvgOutput += svgString;
+            }
+
+            // UTF-8バイナリデータ（Blob）としてカプセル化してエクスポート
+            const svgBlob = new Blob([finalSvgOutput], { type: "image/svg+xml;charset=utf-8" });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            
+            const downloadLink = document.createElement("a");
+            downloadLink.href = svgUrl;
+            downloadLink.download = "mismatch_count_plot.svg";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            
+            // メモリのクリーンアップ
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(svgUrl);
+        });
+
+        container.appendChild(document.createElement("br"));
+        container.appendChild(downloadSvgBtn);
+    }
+
+    // Codon mapping translation sub-routing functional algorithms engine parts
+    function translateCodonMutationJS(cds_seq, sub_pos, mut_base, is_reverse) {
+        if (mut_base === "-") return { label: "Indel", detail: "Frame Shift / Deletion" };
+        let idx = sub_pos - 1;
+
+        if (is_reverse) {
+            idx = cds_seq.length - sub_pos;
+            const comp = {'A':'T','T':'A','G':'C','C':'G','N':'N'};
+            mut_base = comp[mut_base] || mut_base;
+        }
+
+        const codon_start = Math.floor(idx / 3) * 3;
+        const codon_pos = idx % 3;
+        const aa_num = Math.floor(codon_start / 3) + 1;
+
+        const wild_codon = cds_seq.substring(codon_start, codon_start + 3);
+        if (wild_codon.length < 3) return { label: "p.?", detail: "Incomplete Codon" };
+
+        let mut_codon_arr = wild_codon.split('');
+        mut_codon_arr[codon_pos] = mut_base;
+        const mut_codon = mut_codon_arr.join('');
+
+        const wild_aa = translateCodonString(wild_codon);
+        const mut_aa = translateCodonString(mut_codon);
+
+        if (wild_aa === mut_aa) {
+            return { label: `p.${wild_aa}${aa_num}Silent`, detail: `${wild_codon} -> ${mut_codon}` };
+        }
+        return { label: `p.${wild_aa}${aa_num}${mut_aa}`, detail: `${wild_codon}(${wild_aa}) -> ${mut_codon}(${mut_aa})` };
+    }
+
+    function translateCodonString(codon) {
+        const c = codon.toUpperCase();
+        const map = {
+            'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
+            'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
+            'TCT':'S','TCC':'S','TCA':'S','TCG':'S','CCT':'P','CCC':'P','CCA':'P','CCG':'P',
+            'ACT':'T','ACC':'T','ACA':'T','ACG':'T','GCT':'A','GCC':'A','GCA':'A','GCG':'A',
+            'TAT':'Y','TAC':'Y','TAA':'*','TAG':'*','CAT':'H','CAC':'H','CAA':'Q','CAG':'Q',
+            'AAT':'N','AAC':'N','AAA':'K','AAG':'K','GAT':'D','GAC':'D','GAA':'E','GAG':'E',
+            'TGT':'C','TGC':'C','TGA':'*','TGG':'W','CGT':'R','CGC':'R','CGA':'R','CGG':'R',
+            'AGT':'S','AGC':'S','AGA':'R','AGG':'R','GGT':'G','GGC':'G','GGA':'G','GGG':'G'
+        };
+        return map[c] || "?";
+    }
+
+    // CSV Document Sheet Downloader Exporter link engine control events logic execution
+    document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+        if (summaryDataRegistry.length === 0) {
+            alert("Please calculate the metrics matrix first before trying to download a report sheet.");
+            return;
+        }
+
+        // 🌟 先頭列に "reference_name" カラムを追加
+        const headers = ["reference_name", "subject_pos", "ref_base", "mut_base", "sub_type", "frequency", "amino_acid_mutation", "codon_translation", "detected_in_samples"];
+        let csvRows = [headers.join(",")];
+
+        summaryDataRegistry.forEach(row => {
+            const values = headers.map(h => {
+                const val = String(row[h] || '');
+                return val.includes(',') ? `"${val}"` : val;
+            });
+            csvRows.push(values.join(","));
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join("\n"));
+        const link = document.createElement("a");
+        link.setAttribute("href", csvContent);
+        link.setAttribute("download", "mismatch_summary_metrics.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    function parseTextAreaData(text) {
+        const lines = text.trim().split('\n');
+        let resultList = [];
+        if (!text.trim()) return resultList;
+        let currentName = "Edited_Sequence";
+        let currentSeq = [];
+
+        for (let line of lines) {
+            const cleanLine = line.trim();
+            if (cleanLine.startsWith('>')) {
+                if (currentSeq.length > 0) {
+                    resultList.push({ name: currentName, seq: currentSeq.join('').toUpperCase() });
+                }
+                currentName = cleanLine.substring(1);
+                currentSeq = [];
+            } else if (cleanLine) {
+                currentSeq.push(cleanLine.replace(/[^A-Za-z-]/g, ''));
+            }
+        }
+        if (currentSeq.length > 0) {
+            resultList.push({ name: currentName, seq: currentSeq.join('').toUpperCase() });
+        }
+        
+        // Stabilized reference selection context safe extraction return
+        return resultList; 
+    }
+
+    function smithWaterman(query, ref) {
+        const MATCH = 2, MISMATCH = -1, GAP = -2;
+        const qLen = query.length, rLen = ref.length;
+        let scoreMatrix = Array(qLen + 1).fill(0).map(() => Array(rLen + 1).fill(0));
+        let maxScore = 0, maxQ = 0, maxR = 0;
+
+        for (let i = 1; i <= qLen; i++) {
+            for (let j = 1; j <= rLen; j++) {
+                const matchScore = (query[i - 1] === ref[j - 1]) ? MATCH : MISMATCH;
+                const score = Math.max(0,
+                    scoreMatrix[i - 1][j - 1] + matchScore,
+                    scoreMatrix[i - 1][j] + GAP,
+                    scoreMatrix[i][j - 1] + GAP
+                );
+                scoreMatrix[i][j] = score;
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    maxQ = i;
+                    maxR = j;
+                }
+            }
+        }
+
+        let i = maxQ, j = maxR;
+        let queryAlignedRev = [], refAlignedRev = [];
+        const qEnd = i - 1, rEnd = j - 1;
+
+        while (i > 0 && j > 0 && scoreMatrix[i][j] > 0) {
+            const currentScore = scoreMatrix[i][j];
+            const matchScore = (query[i - 1] === ref[j - 1]) ? MATCH : MISMATCH;
+
+            if (currentScore === scoreMatrix[i - 1][j - 1] + matchScore) {
+                queryAlignedRev.push(query[i - 1]);
+                refAlignedRev.push(ref[j - 1]);
+                i--; j--;
+            } else if (currentScore === scoreMatrix[i - 1][j] + GAP) {
+                queryAlignedRev.push(query[i - 1]);
+                refAlignedRev.push('-');
+                i--;
+            } else {
+                queryAlignedRev.push('-');
+                refAlignedRev.push(ref[j - 1]);
+                j--;
+            }
+        }
+
+        return {
+            score: maxScore,
+            qStart: i, qEnd: qEnd,
+            rStart: j, rEnd: rEnd,
+            queryAligned: queryAlignedRev.reverse().join(''),
+            refAligned: refAlignedRev.reverse().join('')
+        };
+    }
+
+    function reverseComplement(seq) {
+        const pairs = {'A':'T', 'T':'A', 'G':'C', 'C':'G', 'N':'N', '-':'-', 'a':'t', 't':'a', 'g':'c', 'c':'g', 'n':'n'};
+        return seq.split('').reverse().map(b => pairs[b] || b).join('');
+    }
+    // Reference側の一括操作
+    document.getElementById('refCheckAll').addEventListener('click', () => toggleCheckboxes('refChecklist', true));
+    document.getElementById('refUncheckAll').addEventListener('click', () => toggleCheckboxes('refChecklist', false));
+    
+    // Query側の一括操作
+    document.getElementById('queryCheckAll').addEventListener('click', () => toggleCheckboxes('queryChecklist', true));
+    // 修正：第1引数を 'queryUnchecklist' から 'queryChecklist' に直しました
+    document.getElementById('queryUncheckAll').addEventListener('click', () => toggleCheckboxes('queryChecklist', false));
+    
+    // 共通のトグル関数
+    function toggleCheckboxes(containerId, isChecked) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = isChecked;
+        });
+    }
+    // Reference側のClear処理
+    document.getElementById('refClearAll').addEventListener('click', () => {
+        if (confirm('Clear all loaded references?')) {
+            // 1. 内部の配列キャッシュを完全に空にする
+            rawReferencesList = [];
+            discoveredMismatchesCache = []; // ミスマッチの共通キャッシュも一度リセット
+            
+            // 2. UI表示をリセット
+            document.getElementById('refChecklist').innerHTML = '';
+            document.getElementById('refTextArea').value = '';
+            document.getElementById('refFile').value = '';
+            document.getElementById('refManager').style.display = 'none';
+        }
+    });
+    
+    // Query側のClear処理
+    document.getElementById('queryClearAll').addEventListener('click', () => {
+        if (confirm('Clear all loaded queries?')) {
+            // 1. 内部の配列キャッシュを完全に空にする
+            rawQueriesList = [];
+            discoveredMismatchesCache = []; // ミスマッチの共通キャッシュも一度リセット
+            
+            // 2. UI表示をリセット
+            document.getElementById('queryChecklist').innerHTML = '';
+            document.getElementById('queryTextArea').value = '';
+            document.getElementById('queryFiles').value = '';
+            document.getElementById('queryManager').style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
