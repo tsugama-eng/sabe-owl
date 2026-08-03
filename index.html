@@ -241,7 +241,8 @@
         <p class="help-text">
             This platform acts as an un-gated, client-side single-page application (SPA) designed for rapid batch sequence mutation analytics, population frequency compounding, and scalable vector graphics (SVG) generation. By implementing all algorithmic components directly in the browser runtime, it eliminates remote data transfers, preserving data privacy.
         </p>
-
+    
+        <!-- 📥 スタンドアロン版ダウンロード（既存） -->
         <div class="download-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #4A90E2; border-radius: 4px;">
             <span style="font-weight: bold; display: block; margin-bottom: 5px;">💾 Run Offline / Standalone Version</span>
             <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
@@ -251,7 +252,37 @@
                 📥 Download Standalone HTML
             </a>
         </div>
-
+    
+        <!-- 🗺️ [新規追加] アーキテクチャ図（Figure 1）のトグル表示エリア -->
+        <div class="architecture-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #2ECC71; border-radius: 4px;">
+            <span style="font-weight: bold; display: block; margin-bottom: 5px;">🗺️ System Architecture Diagram</span>
+            <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
+                Review the complete software architecture workflow and data processing piping modules.
+            </span>
+            <details style="background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <summary style="cursor: pointer; font-weight: bold; color: #2ECC71; outline: none;">️ Show Architecture Diagram (Figure 1)</summary>
+                <!-- ※サーバー上に図をPNGかSVG形式で保存してパスを指定してください（TIFFはブラウザ非対応のため） -->
+                <img src="Figure_1.png" alt="SAVE-OWL Architecture Diagram" style="width: 100%; max-width: 600px; height: auto; margin-top: 10px; border: 1px solid #eee; display: block;">
+                <a href="Figure_1.png" target="_blank" style="display: inline-block; margin-top: 8px; font-size: 0.85em; color: #4A90E2; text-decoration: none;">🔗 Open in new tab</a>
+            </details>
+        </div>
+    
+        <!-- 🎬 [新規追加] 操作実演動画（Screencast 1）の埋め込みエリア -->
+        <div class="video-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #E67E22; border-radius: 4px;">
+            <span style="font-weight: bold; display: block; margin-bottom: 5px;">🎬 Video Demonstration</span>
+            <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
+                Watch a step-by-step walkthrough demonstrating batch alignment, reverse-complement rectification, and data export.
+            </span>
+            <div style="width: 100%; max-width: 640px; margin-top: 8px; border-radius: 4px; overflow: hidden; border: 1px solid #ddd; background: #000;">
+                <!-- ※動画ファイルをサーバー上に配置し、srcに正しいパスを指定してください -->
+                <video controls width="100%" style="display: block;">
+                    <source src="Screencast1.mp4" type="video/mp4">
+                    Your browser does not support the video tag. You can <a href="Screencast1.mp4" style="color: #4A90E2;">download the MP4 video</a> instead.
+                </video>
+            </div>
+        </div>
+    
+        <!-- 以下、既存のヘルプサブセクション（1〜4） -->
         <div class="help-sub">1. Sequence Input Parsing & Core Caching Engine</div>
         <p class="help-text">
             The platform supports multiple selection and drag-and-drop file inputs in both standard and multi-FASTA formats. Upon ingestion, sequence records are automatically parsed and appended to the tracking system cache.
@@ -260,7 +291,7 @@
             <li><b>Batch Checkboxes</b>: Act as a master cache repository. Checking or un-checking names updates the downstream analysis scope options.</li>
             <li><b>Textarea Editing (Critical Principle)</b>: The text boxes are the <b>single source of truth</b> for the alignment engine. Clicking <i>"Apply Selection to Textbox"</i> updates FASTA headers and sequence strings inside these text boxes. The backend algorithm will read and align exactly what is visible in these boxes when executed. Users can directly type, erase, or alter sequences inside these boxes before executing the analysis.</li>
         </ul>
-
+    
         <div class="help-sub">2. Automatic Reverse Complement Alignment</div>
         <p class="help-text">
             Clicking <i>"Run Batch Alignment"</i> starts the computation of a cross-pivot matrix between all items in the query box against all items in the reference box using a native matrix-instantiated <b>Smith-Waterman (Local Alignment) algorithm</b>.
@@ -269,17 +300,18 @@
             <li><b>Strand Autodetection</b>: For each individual query sequence, the system computes alignment scores for both the forward and reverse complement (RC) orientations. The orientation yielding the higher score is automatically selected.</li>
             <li><b>Reverse Complement Reporting Standardization</b>: To ensure accurate profiling and aggregation of mismatches based on the reference coordinate system, if the RC orientation yields the higher score, the system automatically replaces the query sequence with its RC counterpart. Consequently, all subsequent mismatch and gap identifications are reported relative to this replaced RC sequence.</li>
         </ul>
-
+    
         <div class="help-sub">3. Masking No-coverage Regions</div>
         <p class="help-text">
              Any reference coordinates falling outside the aligned range (before the first aligned base or after the last aligned base) are masked with a light gray background labeled <span class="badge-core">No Alignment Coverage</span>. This visual aid allows you to immediately distinguish between a true sequence conservation and a simple lack of data coverage.
         </p>
-
+    
         <div class="help-sub">4. Mismatch Aggregation & Plotting</div>
         <p class="help-text">
             Clicking <i>"Count and Plot Mismatches"</i> analyzes mismatches within your selected reference gene or region. The tool automatically counts recurring mismatches across all samples and displays them in a stacked bar chart. Click <i>"Download SVG"</i> to download the chart data in the SVG format. Click <i>"Download Mismatch CSV"</i> to download the mismatch data and its codon translation impact (missense, nonsense, or silent). This features help you identify mismatch hotspots and view the distribution of mismatch types.
         </p>
     </div>
+
 
 </div>
 
