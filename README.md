@@ -48,7 +48,17 @@ Click *"Download SVG"* to download the chart data in the SVG format. Click *"Dow
 
 ---
 
-## 5. Demo Data Guide & Important Analysis Note
+## 5. Wave-Driven Phase Deconvolution & Reference-Centric Multiple Sequence Alignment (MSA)
+Checking *"Enable Heterozygous Phase Analysis"* and clicking *"Run Batch Alignment"* initiates a specialized dual-allele deconvolution pipeline designed to analyze complex heterozygous frameshift mutations (such as CRISPR-Cas9-induced indels) directly from raw chromatogram trace data.
+
+*   **Anchor Sequence Selection**: Users must input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of mismatches. This acts as the primary coordinate probe.
+*   **Bidirectional Slidewindow Probing**: Based on the automated forward/reverse strand validation of your `.ab1` file, the system dynamically sweeps an internal 20-mer sliding k-mer probe (secondary probe) upstream (for reverse complement orientations) or downstream (for forward orientations) to calculate the precise structural boundaries where trace harmony ruptures and returns.
+*   **Dual-Allele Unmixing**: Once the phase rupture boundaries are locked, the engine unmixes the overlapping chromatogram traces, isolating individual target variants into distinct **Allele A** and **Allele B** sequence tracks.
+*   **Reference-Centric Grid Viewer**: Clicking *"Generate Alignment"* bypasses traditional gap-scattering progressive algorithms. It projects all isolated alleles onto a unified, absolute reference coordinate system. Samples possessing mutations or insertions relative to the reference sequence flag their track names in **bold red labels**, while perfect matches remain muted.
+
+---
+
+## 6. Demo Data Guide & Important Analysis Note
 
 The `demo/` folder contains real-world validation datasets designed to test the platform's multi-FASTA parsing, automatic reverse-complement alignment, and mismatch plotting capabilities.
 
@@ -59,3 +69,26 @@ The `demo/` folder contains real-world validation datasets designed to test the 
 * **`pBS-35S-BFP-3_G10-90_RC_premix.txt`**
   * Sanger sequencing reads (Sanger trace data exported as text) of Blue Fluorescent Protein (**BFP**) constructs. The BFP coding sequences (CDSs) were generated via **overlap extension PCR mutagenesis** using **mVenus** as the template, and subsequently cloned into the pBS-35SMCS-GFP vector, replacing the GFP CDS. 
   * Comparing these (as queries) against **mVenus** in `GFP_variants_cds.fa` (as a reference) will detect intentionally introduced mutations at positions **192, 195, 196, 198, and 199** of the mVenus sequence. The BFP-2 and BFP-3 sequences will exhibit additional mismatches, representing PCR errors introduced during cloning.
+
+* **`Clark_2025_zenodo_cane_toad_CRISPR-Cas9_ab1_files/`** (Directory):
+  * A real-world validation dataset containing raw binary chromatogram (`.ab1`) files from a CRISPR-Cas9 genome editing experiment targeting the *Rhinella marina* (Cane Toad) genome. 
+  * **Data Source & Attribution**: This dataset is sourced from the public repository associated with the bioRxiv preprint (Clark, 2025, https://doi.org/10.1101/2025.05.15.654396) under a Creative Commons Attribution 4.0 International (CC-BY 4.0) license. A formal data description and associated biological study are available in the peer-reviewed article (Clark et al., 2025, https://doi.org/10.1177/25731599251382427).
+
+  * **Testing Orientation Flexibility**: This folder contains true heterozygous mixed-trace files sequenced from both **Forward** and **Reverse Complement (RC)** strand configurations. 
+
+---
+
+### Step-by-Step Heterozygous Phase Analysis Tutorial
+
+To evaluate SAVE-OWL's unique wave-driven phase deconvolution and absolute-coordinate projection capabilities, execute the following workflow using the provided Cane Toad demo files:
+
+1. **Set the Reference Framework**: Copy and paste the target gene's wild-type sequence ("fwd_control.ab1" or "rev_control.ab1") into the **Reference Sequence(s)** input field.
+2. **Load Raw Chromatograms**: Drag and drop the `.ab1` trace files from the `Clark_2025_zenodo_cane_toad_CRISPR-Cas9_ab1_files/` directory into the query ingestion pane.
+3. **Configure the Dual-Probe Parameters**:
+   * Check the ***"Enable Heterozygous Phase Analysis"*** box to unlock the deconvolution engine.
+   * **Anchor Sequence Input**: Paste a clean, homozygous sequence block flanking the targeted cleavage site (e.g., a 20 bp sequence immediately upstream/preceding the expected cut point on your forward reference). *Ensure this specific text string is entirely free of mismatches.*
+   * **Secondary Anchor Search Offset (bp)**: Set this field to your desired buffering padding size (the baseline default value is `20`). This establishes the gap spacing before the system deploys the *20-mer sliding k-mer probe (secondary probe)*.
+4. **Execute Deconvolution**: Click ***"Run Batch Alignment"***. The background algorithm will automatically scan for file orientations, dynamically mirror the secondary probe's sliding track direction (upstream for RC tracks, downstream for Forward tracks), locate the realignment boundary, and instantly unmix the traces into independent **Allele A** and **Allele B** vectors.
+5. **Visualize the Standardized Matrix**: Scroll up/down and click ***"Generate Multiple Sequence Alignment (MSA)"***. The framework will display your crisp, dark-themed reference-centric matrix view. Notice how mutated or frame-shifted allele variants are aligned to coordinates, flagging their tracking names in **red labels** while wild-type tracks remain muted.
+
+---

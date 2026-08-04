@@ -126,16 +126,15 @@
 <div class="app-container">
     <h2 class="main-title-container">
         <span>🧬 SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)</span>
-        <!-- タイトルの右側にロゴを配置 -->
         <img src="save-owl.png" alt="SAVE-OWL Logo" class="title-logo">
     </h2>
     
     <div class="io-section">
         <!-- Left Panel: Reference Sequences Management -->
         <div>
-            <span class="io-label">① Reference FASTA (Batch Upload Supported)</span>
+            <span class="io-label">① Reference Sequence(s) (FASTA / .ab1 Trace, Batch Upload Supported)</span>
             <div class="drop-box" id="refDropZone">
-                Drop files here or click to select
+                Drop FASTA or .ab1 files here or click to select
                 <input type="file" id="refFile" multiple style="display:none;">
             </div>
             
@@ -163,20 +162,21 @@
     
         <!-- Right Panel: Query Sequences Management -->
         <div>
-            <span class="io-label">② Query FASTA (Batch Upload Supported)</span>
+            <span class="io-label">② Query Sequence(s) (FASTA / .ab1 Trace, Batch Upload Supported)</span>
             <div class="drop-box" id="queryDropZone">
-                Drop files here or click to select
-                <input type="file" id="queryFiles" multiple style="display:none;">
+                Drop FASTA or .ab1 files here or click to select
+                <!-- acceptに .ab1 を追加 -->
+                <input type="file" id="queryFiles" multiple accept=".fasta,.fa,.txt,.ab1" style="display:none;">
             </div>
             
             <div class="manager-box" id="queryManager" style="display:none;">
+                <!-- Selected Queriesマネージャー -->
                 <div class="manager-title">
                     <div>
                         <span>Selected Queries</span>
                         <div class="bulk-ctrl-container">
                             <span class="bulk-btn" id="queryCheckAll">All</span> / 
                             <span class="bulk-btn" id="queryUncheckAll">None</span> | 
-                            <!-- 追加：Clearボタン -->
                             <span class="bulk-btn-danger" id="queryClearAll">Clear</span>
                         </div>
                     </div>
@@ -184,12 +184,41 @@
                 </div>
                 <div class="checklist-container" id="queryChecklist"></div>
             </div>
-    
+        
             <div class="editor-container">
                 <div class="manager-title-static">Active Query Sequences (Directly Editable)</div>
                 <textarea class="sequence-editor" id="queryTextArea" placeholder=">Query_1&#10;ATGC..."></textarea>
             </div>
+
+            <!-- 🌟 モード切り替え & パラメータ制御用のコントロールパネルを追加 -->
+            <div class="mode-ctrl-panel" style="margin-top: 10px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <label style="font-size: 13px; font-weight: bold; color: #1e293b; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <input type="checkbox" id="enablePhaseMode"> 🧬 Enable Heterozygous Phase Analysis (.ab1)
+                    </label>
+                </div>
+                
+                <!-- 詳細設定エリア -->
+                <div id="phaseParams" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e0; font-size: 12px; color: #4a5568;">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- 🌟 PINPOINT ADDITION: gRNA入力欄 -->
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <label style="font-weight: bold;">Anchor Sequence (such as gRNA-preceding region):</label>
+                            <input type="text" id="gRnaInput" placeholder="ATCGATCGATCGATCGATCG" style="width: 200px; padding: 2px 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-family: monospace; text-transform: uppercase;">
+                        </div>
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <label><strong>Secondary Anchor Search Offset (from Cut Site):</strong> 
+                                <input type="number" id="anchorOffsetInput" value="20" min="5" max="100" style="width: 50px; padding: 2px 4px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center;"> bp
+                            </label>
+                            <span style="color: #64748b; font-size: 11px;"> *Input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of indels. No strict length limit. The software automatically handles both forward (upstream) and reverse-complement (downstream) orientations based on your forward reference.
+</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
+
     </div>
 
     <div class="action-area">
@@ -203,7 +232,6 @@
         <p style="font-size: 13px; color: #64748b; margin-top: -5px;">Downstream calculator processing automated codon metrics and frequency stacked visualizations.</p>
         
         <div class="param-grid">
-            <!-- 🌟 PINPOINT ADDITION: Dynamic Reference Selector -->
             <label>Target Reference:</label>
             <select id="targetRefSelect" style="padding: 4px 8px; border: 1px solid #cbd5e0; border-radius: 4px; font-weight: bold; background: white;"></select>
         
@@ -217,13 +245,38 @@
         
         <div id="aggStatus" style="font-size: 13px; font-weight: bold; color: #27ae60; margin-bottom: 10px;"></div>
         
-        <!-- Stacked Vector Plot Map Output Bounding Frame -->
         <div class="chart-box" id="chartOutput">
             <p style="color: #94a3b8; font-style: italic; padding-top: 40px;">Click 'Count and Plot Mismatches' to generate the Matplotlib-grade vector distribution graphic tracks...</p>
         </div>
     </div>
 
+    <!-- 🌟 ④ ゲノム編集フェーズ解析専用のマルチプルアラインメントパネル -->
+    <div class="aggregator-panel" id="msaPanel" style="display:none; margin-top:20px; border:1px solid #cbd5e0; padding:15px; border-radius:6px; background:#fff;">
+        <h3>🧬 ④ Global Multiple Sequence Alignment View</h3>
+        <p style="font-size: 13px; color: #64748b; margin-top: -5px;">バッチ処理されたすべてのサンプルのアレルA/B配列を、リファレンス配列のタイムライン上に縦一列に並べて表示します。</p>
+        
+        <div class="param-grid" style="display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; margin-bottom: 15px;">
+            <label style="font-weight:bold; font-size:13px;">MSA X-Axis Bounds: Min Position</label>
+            <input type="number" id="msaXMinInput" class="param-input" value="1" style="padding:4px; border:1px solid #cbd5e0; border-radius:4px; width:100px;">
+            
+            <label style="font-weight:bold; font-size:13px;">Max Position</label>
+            <input type="number" id="msaXMaxInput" class="param-input" value="1000" style="padding:4px; border:1px solid #cbd5e0; border-radius:4px; width:100px;">
+            
+            <!-- 🌟 通常の集計ボタンとは別個の独立した専用ボタン（msaBtn）を用意 -->
+            <button id="msaBtn" class="action-btn" style="grid-column: span 2; padding:8px; background:#27ae60; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Generate Multiple Sequence Alignment (MSA)</button>
+        </div>
+        
+        <div id="msaStatus" style="font-size: 13px; font-weight: bold; color: #27ae60; margin-bottom: 10px;"></div>
+        
+        <!-- 🌟 マルチプルアラインメント結果が出力される専用のボックス（msaChartOutput） -->
+        <div class="chart-box" id="msaChartOutput" style="min-height:100px; background:#f8f9fa; border-radius:4px; border:1px dashed #cbd5e0; padding:10px;">
+            <p style="color: #94a3b8; font-style: italic; text-align:center; padding-top: 20px; margin:0;">Click 'Generate Multiple Sequence Alignment (MSA)' to reconstruct the synchronized multiple track alignment view...</p>
+        </div>
+    </div>
+
     <div id="reportView"></div>
+
+    
         <!-- 📄 Academic Documentation & Operation Manual Section -->
     <style>
         .help-panel { background: #ffffff; border: 1px solid #cbd5e0; border-radius: 8px; padding: 25px; margin-top: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
@@ -242,7 +295,7 @@
             This platform acts as an un-gated, client-side single-page application (SPA) designed for rapid batch sequence mutation analytics, population frequency compounding, and scalable vector graphics (SVG) generation. By implementing all algorithmic components directly in the browser runtime, it eliminates remote data transfers, preserving data privacy.
         </p>
     
-        <!-- 📥 スタンドアロン版ダウンロード（既存） -->
+        <!-- 📥 スタンドアロン版ダウンロード -->
         <div class="download-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #4A90E2; border-radius: 4px;">
             <span style="font-weight: bold; display: block; margin-bottom: 5px;">💾 Run Offline / Standalone Version</span>
             <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
@@ -253,7 +306,7 @@
             </a>
         </div>
     
-        <!-- 🗺️ [新規追加] アーキテクチャ図（Figure 1）のトグル表示エリア -->
+        <!-- 🗺️ アーキテクチャ図（Figure 1）のトグル表示エリア -->
         <div class="architecture-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #2ECC71; border-radius: 4px;">
             <span style="font-weight: bold; display: block; margin-bottom: 5px;">🗺️ System Architecture Diagram</span>
             <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
@@ -267,14 +320,13 @@
             </details>
         </div>
     
-        <!-- 🎬 [新規追加] 操作実演動画（Screencast 1）の埋め込みエリア -->
+        <!-- 🎬 操作実演動画（Screencast 1）の埋め込みエリア -->
         <div class="video-box" style="margin: 15px 0; padding: 12px; background-color: rgba(0,0,0,0.03); border-left: 4px solid #E67E22; border-radius: 4px;">
             <span style="font-weight: bold; display: block; margin-bottom: 5px;">🎬 Video Demonstration</span>
             <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
                 Watch a step-by-step walkthrough demonstrating batch alignment, reverse-complement rectification, and data export.
             </span>
             <div style="width: 100%; max-width: 640px; margin-top: 8px; border-radius: 4px; overflow: hidden; border: 1px solid #ddd; background: #000;">
-                <!-- ※動画ファイルをサーバー上に配置し、srcに正しいパスを指定してください -->
                 <video controls width="100%" style="display: block;">
                     <source src="Screencast1.mp4" type="video/mp4">
                     Your browser does not support the video tag. You can <a href="Screencast1.mp4" style="color: #4A90E2;">download the MP4 video</a> instead.
@@ -282,7 +334,6 @@
             </div>
         </div>
     
-        <!-- 以下、既存のヘルプサブセクション（1〜4） -->
         <div class="help-sub">1. Sequence Input Parsing & Core Caching Engine</div>
         <p class="help-text">
             The platform supports multiple selection and drag-and-drop file inputs in both standard and multi-FASTA formats. Upon ingestion, sequence records are automatically parsed and appended to the tracking system cache.
@@ -310,6 +361,17 @@
         <p class="help-text">
             Clicking <i>"Count and Plot Mismatches"</i> analyzes mismatches within your selected reference gene or region. The tool automatically counts recurring mismatches across all samples and displays them in a stacked bar chart. Click <i>"Download SVG"</i> to download the chart data in the SVG format. Click <i>"Download Mismatch CSV"</i> to download the mismatch data and its codon translation impact (missense, nonsense, or silent). This features help you identify mismatch hotspots and view the distribution of mismatch types.
         </p>
+        <div class="help-sub">5. Wave-Driven Phase Deconvolution & Reference-Centric multiple sequence alignment (MSA)</div>
+        <p class="help-text">
+            Checking <i>"Enable Heterozygous Phase Analysis"</i> and clicking <i>"Run Batch Alignment"</i> initiates a specialized dual-allele deconvolution pipeline designed to analyze complex heterozygous frameshift mutations (such as CRISPR-Cas9-induced indels) directly from raw chromatogram trace data.
+        </p>
+        <ul class="help-list">
+            <li><b>Anchor Sequence Selection</b>: Users must input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of mismatches. This acts as the primary coordinate probe.</li>
+            <li><b>Bidirectional Slidewindow Probing</b>: Based on the automated forward/reverse strand validation of your .ab1 file, the system dynamically sweeps an internal 20-mer sliding k-mer probe (secondary probe) upstream (for reverse complement orientations) or downstream (for forward orientations) to calculate the precise structural boundaries where trace harmony ruptures and returns.</li>
+            <li><b>Dual-Allele Unmixing</b>: Once the phase rupture boundaries are locked, the engine unmixes the overlapping chromatogram traces, isolating individual target variants into distinct <b>Allele A</b> and <b>Allele B</b> sequence tracks.</li>
+            <li><b>Reference-Centric Grid Viewer</b>: Clicking <i>"Generate Multiple Sequence Alignment (MSA)"</i> bypasses traditional gap-scattering progressive algorithms. It projects all isolated alleles onto a unified, absolute reference coordinate system. Samples possessing mutations or insertions relative to the reference sequence flag their track names in <b>red labels</b>, while perfect matches remain muted.</li>
+        </ul>
+
     </div>
 
 
@@ -320,23 +382,87 @@
     let rawQueriesList = [];
     let discoveredMismatchesCache = []; // Shared cross-alignment data registry pipeline array
 
+    // --- For phase analysis ---
+    document.addEventListener("DOMContentLoaded", () => {
+        const enablePhaseModeCheck = document.getElementById("enablePhaseMode");
+        const phaseParamsDiv = document.getElementById("phaseParams");
+        if (enablePhaseModeCheck && phaseParamsDiv) {
+            enablePhaseModeCheck.addEventListener("change", (e) => {
+                phaseParamsDiv.style.display = e.target.checked ? "block" : "none";
+            });
+        }
+    });
+
+    // 🌟 キャッシュ用：ステップ3でバイナリを再パースするために元のFileオブジェクトを一時保存
+    let ab1RawFileCache = {};
+
     // Setup Drag and Drop / Selection listeners
     setupIO('refDropZone', 'refFile', async (files) => {
         for (let f of files) {
-            const text = await f.text();
-            parseAndAppendSequences(text, f.name, rawReferencesList);
+            if (f.name.toLowerCase().endsWith('.ab1')) {
+                try {
+                    // Read file as raw binary (ArrayBuffer)
+                    const arrayBuffer = await f.arrayBuffer();
+                    
+                    // Safely extract the primary sequence text using your robust parser
+                    const ab1Parsed = parseAb1PrimaryFromBuffer(arrayBuffer);
+                    
+                    rawReferencesList.push({ 
+                        id: f.name, 
+                        file: f.name, 
+                        header: f.name, 
+                        seq: ab1Parsed.sequence 
+                    });
+                } catch (e) {
+                    alert(`AB1 Reference pre-parsing error on ${f.name}: ${e.message}`);
+                }
+            } else {
+                // Keep the standard FASTA/TXT text parsing block intact
+                const text = await f.text();
+                parseAndAppendSequences(text, f.name, rawReferencesList);
+            }
         }
+        // Update the checklist and sync layout
         renderChecklist('refChecklist', rawReferencesList);
         updateTextAreaFromChecklist('refChecklist', 'refTextArea', rawReferencesList);
         document.getElementById('refManager').style.display = 'block';
         checkReady();
     });
 
+    // Setup Drag and Drop / Selection listeners for Queries
     setupIO('queryDropZone', 'queryFiles', async (files) => {
+        const refTextArea = document.getElementById("refTextArea");
+        const queryTextArea = document.getElementById("queryTextArea");
+    
         for (let f of files) {
-            const text = await f.text();
-            parseAndAppendSequences(text, f.name, rawQueriesList);
+            if (f.name.toLowerCase().endsWith('.ab1')) {
+                try {
+                    // 生のバイナリ（ArrayBuffer）としてファイルを読み込む
+                    const arrayBuffer = await f.arrayBuffer();
+                    
+                    // 後続の位相解析（ステップ3）用にArrayBufferをキャッシュ
+                    ab1RawFileCache[f.name] = arrayBuffer; 
+                    
+                    // 🌟 修正の核心：以前のエラーが出ない「安全な救済逆算付き」の関数でプライマリ配列を抽出します
+                    // （※この関数は一番最初の修正版「parseAb1PrimaryFromBuffer」をそのまま使います）
+                    const ab1Parsed = parseAb1PrimaryFromBuffer(arrayBuffer);
+                    
+                    rawQueriesList.push({ 
+                        id: f.name, 
+                        file: f.name, 
+                        header: f.name, 
+                        seq: ab1Parsed.sequence 
+                    });
+                } catch (e) {
+                    alert(`AB1 pre-parsing error: ${e.message}`);
+                }
+            } else {
+                // 通常のFASTAファイル等は既存通りのテキスト処理を実行
+                const text = await f.text();
+                parseAndAppendSequences(text, f.name, rawQueriesList);
+            }
         }
+        // チェックリストを描画し、テキストエリアへ綺麗に同期反映
         renderChecklist('queryChecklist', rawQueriesList);
         updateTextAreaFromChecklist('queryChecklist', 'queryTextArea', rawQueriesList);
         document.getElementById('queryManager').style.display = 'block';
@@ -425,6 +551,548 @@
         }
     }
 
+    // 🌟 全アレルの生配列をプールし、Progressive多重整列とギャップ伝播で3'末端まで完全同期させるエンジン
+    document.getElementById('msaBtn')?.addEventListener('click', () => {
+        const xmin = Math.max(1, parseInt(document.getElementById('msaXMinInput').value) || 1);
+        const xmax = parseInt(document.getElementById('msaXMaxInput').value) || 9999;
+        
+        const msaOutputContainer = document.getElementById('msaChartOutput');
+        if (!msaOutputContainer) {
+            console.error("【致命的】画面上に 'msaChartOutput' というIDのコンテナが見つかりません。HTMLを確認してください。");
+            alert("Error: msaChartOutput not found.");
+            return;
+        }
+        msaOutputContainer.innerHTML = "<p style='color:#31708f;'>⏳ アライメント計算中...（配列数を確認しています）</p>";
+    
+        // --- [データ検証] ---
+        if (!window.globalPhasedSequencesPool || window.globalPhasedSequencesPool.length === 0) {
+            msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px; font-weight:bold;">Error: Phased sequence pool is empty. Please run Phase Analysis first.</p>`;
+            return;
+        }
+    
+        const refTextArea = document.getElementById("refTextArea");
+        if (!refTextArea) {
+            alert("Error: refTextArea not found.");
+            return;
+        }
+        
+        // リファレンス配列の抽出（改行やスペースを徹底除去）
+        const baseRefSequence = refTextArea.value.replace(/>.*/g, '').replace(/[^A-Za-z-]/g, '').toUpperCase();
+        if (!baseRefSequence) {
+            alert("Error: Reference nucleotide sequence missing context.");
+            return;
+        }
+    
+        console.log(`[MSA開始] リファレンス長さ: ${baseRefSequence.length} bp`);
+        console.log(`[MSA開始] プール内の配列数: ${window.globalPhasedSequencesPool.length} 本`);
+    
+        // --- [STEP 1] 全ての配列を統合 ---
+        const rawSequencePool = [
+            { name: "Reference", seq: baseRefSequence.replace(/-/g, '') }
+        ];
+    
+        window.globalPhasedSequencesPool.forEach((track, idx) => {
+            let extractedSequenceString = track.seq || track.alleleA || track.alleleB || "";
+            extractedSequenceString = String(extractedSequenceString).toUpperCase().replace(/[^A-Z-]/g, '');
+    
+            rawSequencePool.push({
+                name: track.name || track.fileName || `Sequence_${idx + 1}`,
+                seq: extractedSequenceString.replace(/-/g, '') 
+            });
+        });
+    
+        // --- [STEP 2] Needleman-Wunsch アルゴリズム ---
+        function computePureNW(seq1, seq2) {
+            const MATCH = 2, MISMATCH = -1, GAP = -2;
+            const n = seq1.length, m = seq2.length;
+            
+            const score = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+            const trace = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
+    
+            for (let i = 0; i <= n; i++) { score[i][0] = i * GAP; trace[i][0] = 3; }
+            for (let j = 0; j <= m; j++) { score[0][j] = j * GAP; trace[0][j] = 2; }
+    
+            for (let i = 1; i <= n; i++) {
+                const c1 = seq1.charAt(i - 1);
+                for (let j = 1; j <= m; j++) {
+                    const c2 = seq2.charAt(j - 1);
+                    const matchScore = score[i - 1][j - 1] + (c1 === c2 ? MATCH : MISMATCH);
+                    const horizScore = score[i][j - 1] + GAP;
+                    const vertScore = score[i - 1][j] + GAP;
+                    
+                    const max = Math.max(matchScore, horizScore, vertScore);
+                    score[i][j] = max;
+                    
+                    if (max === matchScore) trace[i][j] = 1;
+                    else if (max === horizScore) trace[i][j] = 2;
+                    else trace[i][j] = 3;
+                }
+            }
+    
+            let aligned1 = "", aligned2 = "";
+            let i = n, j = m;
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && trace[i][j] === 1) {
+                    aligned1 = seq1.charAt(i - 1) + aligned1; aligned2 = seq2.charAt(j - 1) + aligned2; i--; j--;
+                } else if (j > 0 && (i === 0 || trace[i][j] === 2)) {
+                    aligned1 = "-" + aligned1; aligned2 = seq2.charAt(j - 1) + aligned2; j--;
+                } else if (i > 0 && (j === 0 || trace[i][j] === 3)) {
+                    aligned1 = seq1.charAt(i - 1) + aligned1; aligned2 = "-" + aligned2; i--;
+                } else {
+                    break; 
+                }
+            }
+            return { a1: aligned1, a2: aligned2 };
+        }
+    
+        // --- [NEW STEP 3] 🧬 Reference-Centric Coordinate Merge (Star Alignment Core) ---
+        // 1対1のペアワイズ結果をリファレンスの絶対座標軸へ一元的にマッピングし、縦ラインを完全同期
+        
+        // 各クエリ配列をリファレンスと個別に1対1でペアワイズアライメント（インサート情報を抽出）
+        const pairwiseAlignments = [];
+        
+        // リファレンス側の最大長（インサートによる拡張分）を追跡するための仮想インサート配列
+        // 各リファレンス座位(0..baseRefSequence.length)の直後に最大何文字の挿入配列が入るかを記録
+        const maxInsertionsAtPos = new Int32Array(baseRefSequence.length + 1);
+
+        for (let p = 0; p < window.globalPhasedSequencesPool.length; p++) {
+            const track = window.globalPhasedSequencesPool[p];
+            let qSeq = track.seq || track.alleleA || track.alleleB || "";
+            qSeq = String(qSeq).toUpperCase().replace(/[^A-Z]/g, ''); // クエリのギャップをクリア
+
+            // リファレンスと1対1で最適パスを再計算 (もしくは既存のペアワイズ結果があればそれを流用可能)
+            const pair = computePureNW(baseRefSequence, qSeq);
+            pairwiseAlignments.push({
+                name: track.name || track.fileName || `Sequence_${p + 1}`,
+                refAligned: pair.a1,  // リファレンス側（ギャップを含む）
+                queryAligned: pair.a2 // クエリ側（ギャップを含む）
+            });
+
+            // このクエリがリファレンスの各ポジションにどれだけの挿入(インサート)を作ったかをスキャン
+            let refPos = 0;
+            let currentInsertLen = 0;
+
+            for (let i = 0; i < pair.a1.length; i++) {
+                if (pair.a1[i] === "-") {
+                    currentInsertLen++;
+                } else {
+                    // 挿入セグメントが途切れたタイミングで、その直前のリファレンス座標における最大挿入長を更新
+                    if (currentInsertLen > maxInsertionsAtPos[refPos]) {
+                        maxInsertionsAtPos[refPos] = currentInsertLen;
+                    }
+                    refPos++;
+                    currentInsertLen = 0;
+                }
+            }
+            // 配列末尾のインサートチェック
+            if (currentInsertLen > maxInsertionsAtPos[refPos]) {
+                maxInsertionsAtPos[refPos] = currentInsertLen;
+            }
+        }
+
+        // --- [STEP 4] 🌟 マスターリファレンス軸の生成と全配列の座標同期マージ ---
+        // 全クエリのインサート要求を満たす「全コンセンサス対応型マスターリファレンス」を組み立て
+        let masterAlignedRef = "";
+        
+        // 各クエリの現在のスキャン位置ポインタ
+        const queryPointers = new Int32Array(pairwiseAlignments.length);
+        const queryStrings = Array.from({ length: pairwiseAlignments.length }, () => "");
+
+        // リファレンスの各文字を1文字ずつ走査しながら、必要に応じて世界共通のインサート隙間（ギャップ）を空ける
+        for (let r = 0; r <= baseRefSequence.length; r++) {
+            // 1. まず現在のポジションの「手前」に発生した最大インサート数分のスロットを全員に均等に配布
+            const maxIns = maxInsertionsAtPos[r];
+            if (maxIns > 0) {
+                // マスターリファレンスにはインサート分だけギャップを挿入
+                masterAlignedRef += "-".repeat(maxIns);
+                
+                // 各クエリを走査し、インサートを持っている配列はその文字を、持っていない配列はギャップを埋める
+                pairwiseAlignments.forEach((align, idx) => {
+                    let ptr = queryPointers[idx];
+                    let insBuffer = "";
+                    
+                    // 当該クエリのペアワイズ配列上で、リファレンスがギャップになっている部分（＝挿入配列）を回収
+                    while (ptr < align.refAligned.length && align.refAligned[ptr] === "-") {
+                        insBuffer += align.queryAligned[ptr];
+                        ptr++;
+                    }
+                    // 最大長に満たない分は共通ギャップでパディングして縦のフェーズを完全維持
+                    queryStrings[idx] += insBuffer.padEnd(maxIns, "-");
+                    queryPointers[idx] = ptr;
+                });
+            }
+
+            // ループの終端（末尾インサート処理後）なら終了
+            if (r === baseRefSequence.length) break;
+
+            // 2. 本体の文字をマッピング
+            masterAlignedRef += baseRefSequence[r];
+            pairwiseAlignments.forEach((align, idx) => {
+                let ptr = queryPointers[idx];
+                // ペアワイズ上で次のリファレンス文字と一致する位置までポインタを進める
+                while (ptr < align.refAligned.length && align.refAligned[ptr] === "-") {
+                    ptr++; // 異常系のスキップセーフティ
+                }
+                if (ptr < align.refAligned.length) {
+                    queryStrings[idx] += align.queryAligned[ptr];
+                    queryPointers[idx] = ptr + 1;
+                } else {
+                    queryStrings[idx] += "-";
+                }
+            });
+        }
+
+        // --- ウィンドウ（xmin / xmax）基準の正確なトリミング処理 ---
+        let clippedRef = "";
+        const clippedTracks = pairwiseAlignments.map(m => ({ name: m.name, seq: "" }));
+        let refCoordCounter = 0;
+
+        for (let i = 0; i < masterAlignedRef.length; i++) {
+            const rChar = masterAlignedRef[i];
+            if (rChar !== "-") refCoordCounter++; // 純粋なリファレンス座標のみカウント
+
+            // 指定ウィンドウに入っているか判定（インサート含む）
+            if (refCoordCounter >= xmin && refCoordCounter <= xmax) {
+                clippedRef += rChar;
+                queryStrings.forEach((str, idx) => {
+                    clippedTracks[idx].seq += str[i] || "-";
+                });
+            }
+        }
+
+        // セーフティチェック
+        if (clippedRef.length === 0) {
+            msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px;">⚠️ 指定範囲 [xmin: ${xmin}, xmax: ${xmax}] にデータがありません。範囲設定を見直してください。</p>`;
+            return;
+        }
+    
+        // --- [STEP 5] 画面表示HTML構築 ---
+        let msaHtmlBuffer = `<div style="margin-top:15px; background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #cbd5e0;">`;
+        msaHtmlBuffer += `<h4 style="margin: 0 0 10px 0; color: #2b542c; font-size: 14px; font-weight:bold;">🧬 Global Batch Multiple Sequence Alignment (MSA) Matrix View</h4>`;
+        msaHtmlBuffer += `<p style="margin: 0 0 12px 0; font-size: 12px; color: #666;">Displaying synchronized multiple alignment window: [Ref Position ${xmin} to ${Math.min(baseRefSequence.length, xmax)}]</p>`;
+        
+        // Tabular-nums と monospace 強制により、文字幅を完全にビット揃え
+        msaHtmlBuffer += `<div style="font-family: 'Courier New', Courier, monospace !important; font-size: 14px !important; line-height: 1.7 !important; white-space: pre !important; background: #1e1e1e !important; color: #ffffff !important; padding: 14px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0px !important;">`;
+
+        // 1行目: リファレンス配列の出力
+        const paddedRefLabel = "Reference".padEnd(25, " ");
+        msaHtmlBuffer += `<span style="color: #5cb85c; font-weight:bold; font-family:inherit;">${paddedRefLabel} :</span> ${clippedRef}\n`;
+
+        // 2行目以降: 各サンプルのアレル配列の一覧出力
+        clippedTracks.forEach(track => {
+            // リファレンス配列と一文字ずつ比較し、不一致（変異またはギャップ）があるかチェック
+            let isMismatched = false;
+            for (let i = 0; i < clippedRef.length; i++) {
+                if (track.seq[i] !== clippedRef[i]) {
+                    isMismatched = true;
+                    break; // 1箇所でも違えばループを抜ける
+                }
+            }
+
+            // 【新機能】リファレンスと不一致がある配列は目立つ赤（#d9534f）、完全一致はシンプルなグレー（#94a3b8）
+            const labelColor = isMismatched ? "#d9534f; font-weight:bold;" : "#94a3b8";
+
+            const paddedLabel = track.name.substring(0,22).padEnd(25, " ");
+            msaHtmlBuffer += `<span style="color:${labelColor}; font-family:inherit;">${paddedLabel} :</span> <span style="color:#ffffff; font-family:inherit;">${track.seq}</span>\n`;
+        });
+
+        msaHtmlBuffer += `</div></div>`;
+        msaOutputContainer.innerHTML = msaHtmlBuffer;
+    
+        // --- [STEP 6] エクスポートボタンパネル ---
+        const btnWrapper = document.createElement("div");
+        btnWrapper.style.marginTop = "15px";
+        btnWrapper.style.display = "flex";
+        btnWrapper.style.gap = "10px";
+    
+        // ① Multi-FASTA
+        const fastaBtn = document.createElement("button");
+        fastaBtn.style.padding = "6px 12px";
+        fastaBtn.style.backgroundColor = "#34495e";
+        fastaBtn.style.color = "#fff";
+        fastaBtn.style.border = "none";
+        fastaBtn.style.borderRadius = "4px";
+        fastaBtn.style.cursor = "pointer";
+        fastaBtn.innerText = "💾 Download Multi-FASTA (.fa)";
+        fastaBtn.addEventListener('click', () => {
+            let fastaContent = `>Reference_Window_${xmin}_${xmax}\n${clippedRef.replace(/-/g, '')}\n`;
+            clippedTracks.forEach(track => {
+                const cleanName = track.name.replace(/\s+/g, '_');
+                const cleanSeq = track.seq.replace(/-/g, '');
+                fastaContent += `>${cleanName}_Window_${xmin}_${xmax}\n${cleanSeq}\n`;
+            });
+            const blob = new Blob([fastaContent], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `phased_alleles_window_${xmin}_${xmax}.fa`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    
+        // ② Clustal
+        const clustalBtn = document.createElement("button");
+        clustalBtn.style.padding = "6px 12px";
+        clustalBtn.style.backgroundColor = "#2980b9";
+        clustalBtn.style.color = "#fff";
+        clustalBtn.style.border = "none";
+        clustalBtn.style.borderRadius = "4px";
+        clustalBtn.style.cursor = "pointer";
+        clustalBtn.innerText = "📋 Download Alignment Text (.txt)";
+        clustalBtn.addEventListener('click', () => {
+            let clustalContent = "CLUSTAL W multiple sequence alignment (Sanger Progressive MSA View)\n\n";
+            clustalContent += `${"Reference".padEnd(30, " ")} ${clippedRef}\n`;
+            clippedTracks.forEach(t => {
+                const cleanName = t.name.replace(/\s+/g, '_').substring(0, 28);
+                clustalContent += `${cleanName.padEnd(30, " ")} ${t.seq}\n`;
+            });
+            
+            const blob = new Blob([clustalContent], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `multiple_sequence_alignment_${xmin}_${xmax}.txt`;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    
+        // --- [STEP 7] Render Component Assemblies to Interface ---
+        btnWrapper.appendChild(fastaBtn);
+        btnWrapper.appendChild(clustalBtn);
+        msaOutputContainer.appendChild(btnWrapper);
+    
+        const statusEl = document.getElementById('msaStatus');
+        if (statusEl) {
+            statusEl.innerText = `Global Clustal-grade MSA generated. Export tools ready.`;
+        }
+    });
+
+
+
+    
+    // 🌟 ゲノム編集フェーズ解析専用：本物の生の確定アレイル配列を格納するグローバルプールを定義
+    if (typeof globalPhasedSequencesPool === 'undefined') {
+        window.globalPhasedSequencesPool = [];
+    }
+
+    // 【ステップ３】解析実行ボタン（runBtn）のクリックイベントに割り込むフック
+    document.getElementById('runBtn').addEventListener('click', async (e) => {
+        const isPhaseModeChecked = document.getElementById("enablePhaseMode")?.checked || false;
+        
+        if (!isPhaseModeChecked) {
+            return; // チェックOFFなら既存の通常ロジックにおまかせ
+        }
+    
+        e.stopImmediatePropagation(); // 既存ロジックをストップ
+        
+        const refTextArea = document.getElementById("refTextArea");
+        const refSeqClean = refTextArea.value.replace(/>.*/g, '').replace(/[^A-Za-z]/g, '').toUpperCase();
+        if (!refSeqClean) {
+            alert('Please provide a sequence in "① Reference Sequence(s)"!');
+            return;
+        }
+
+        // 🌟 新設したアレル配列プールと、既存のミスマッチ用キャッシュを両方ともクリア
+        window.globalPhasedSequencesPool = [];
+        if (typeof discoveredMismatchesCache !== 'undefined') {
+            discoveredMismatchesCache = [];
+        }
+    
+        const offsetSetting = parseInt(document.getElementById("anchorOffsetInput")?.value) || 0;
+        document.getElementById('status').innerText = '⏳ Executing High-Precision Wave-Driven Phase Analysis...';
+    
+        const checkboxes = document.getElementById('queryChecklist').querySelectorAll('input[type="checkbox"]');
+        const selectedFilesToProcess = [];
+
+        for (let cb of checkboxes) {
+            if (cb.checked) {
+                const idx = parseInt(cb.getAttribute('data-index'));
+                const item = rawQueriesList[idx];
+                const cachedBuffer = ab1RawFileCache[item.file];
+
+                if (cachedBuffer) { selectedFilesToProcess.push({ name: item.file, arrayBuffer: async () => cachedBuffer }); }
+            }
+        }
+
+        if (selectedFilesToProcess.length === 0) {
+            alert("Query not found!");
+            document.getElementById('status').innerText = 'Ready.';
+            return;
+        }
+
+        try {
+            console.log(`[Phase Mode] Initiating batch parsing for ${selectedFilesToProcess.length} traces.`);
+            const batchOutputs = await runSangerBatchPhaseAnalysis(selectedFilesToProcess, refSeqClean, offsetSetting);
+            
+            const resultsContainer = document.getElementById("reportView");
+            resultsContainer.innerHTML = ""; 
+            
+            const targetRefSelect = document.getElementById('targetRefSelect');
+            const activeRefName = targetRefSelect ? targetRefSelect.value : "Reference";
+
+            for (let res of batchOutputs) {
+                if (res.status === "Success") {
+                    // 個別アライメント（Reference, Allele A, Allele B）の表示
+                    appendDeconvolutionCardToUi(res.fileName, res.strandDetected, res.data, resultsContainer);
+
+                    const isHomozygous = (res.data.alleleA === res.data.alleleB);
+
+                    // 🌟 【修正の核心】バックエンドが生成した「ギャップ調整済みの本物の配列」をそのままプールへ100%の精度で直撃格納！
+                    // これにより、25bpの挿入コピーや複雑な欠失ギャップのデータが完璧に引き渡されます。
+                    if (isHomozygous) {
+                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (WT)`, seq: res.data.alleleA });
+                    } else {
+                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (A)`, seq: res.data.alleleA });
+                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (B)`, seq: res.data.alleleB });
+                    }
+
+                    // 既存の③ダッシュボード連動用のキャッシュ処理も念のため並走（後方互換性維持）
+                    const totalLen = res.data.alleleA.length;
+                    let currentRPos = 1;
+                    for (let i = 0; i < totalLen; i++) {
+                        const charB = res.data.alleleB[i];
+                        const charR = res.data.referenceSegment[i];
+                        if (!isHomozygous && charB !== charR) {
+                            discoveredMismatchesCache.push({
+                                query_file: res.fileName, query_name: res.fileName, matched_ref: activeRefName,
+                                subject_pos: charR === '-' ? "GAP" : currentRPos, ref_base: charR, mut_base: charB,
+                                query_ref_start: res.data.indelStartRefPos, query_ref_end: res.data.indelEndRefPos
+                            });
+                        }
+                        if (charR !== '-') currentRPos++;
+                    }
+
+                } else {
+                    resultsContainer.insertAdjacentHTML('beforeend', `
+                        <table style="width:100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #d9534f; background: #fdf7f7;">
+                            <tr><th style="background:#d9534f; color:white; padding:8px; text-align:left;">❌ Analysis Error</th></tr>
+                            <tr><td style="padding:12px; font-family:monospace; font-size:13px;"><b>File:</b> ${res.fileName}<br><br><b>Message:</b> ${res.message}</td></tr>
+                        </table><br><br>
+                    `);
+                }
+            }
+            
+            document.getElementById('status').innerText = 'Analysis complete via Wave Phase Mode.';
+            
+            // パネルの表示
+            const aggregatorPanel = document.getElementById('aggregatorPanel');
+            if (aggregatorPanel) aggregatorPanel.style.display = 'block';
+            const msaPanel = document.getElementById('msaPanel');
+            if (msaPanel) msaPanel.style.display = 'block';
+
+        } catch (globalErr) {
+            alert(`Global batch calculation failed: ${globalErr.message}`);
+            document.getElementById('status').innerText = 'Error handling batch sequence arrays.';
+        }
+    }, { capture: true });
+
+    /**
+     * 🎨 UI DOM Renderer Interface Component（完全同期型・マルチプル対応）
+     */
+    function appendDeconvolutionCardToUi(fileName, orientationLabel, data, container) {
+        const refSeqAligned = data.referenceSegment;
+        const alleleAAligned = data.alleleA;
+        const alleleBAligned = data.alleleB;
+        const maxTrackLen = refSeqAligned.length;
+    
+        // Check if both channels resolve as structurally identical tracks
+        const isHomozygousTrack = (alleleAAligned === alleleBAligned);
+    
+        let alignmentBarA = "";
+        let alignmentBarB = "";
+        let mismatchesA = [];
+        let mismatchesB = [];
+    
+        let currentRPos = 1, currentAPos = 1, currentBPos = 1;
+    
+        for (let i = 0; i < maxTrackLen; i++) {
+            const charR = refSeqAligned[i];
+            const charA = alleleAAligned[i];
+            const charB = alleleBAligned[i];
+    
+            if (charA === charR && charA !== '-' && charR !== '-') {
+                alignmentBarA += "|";
+            } else {
+                alignmentBarA += " ";
+                if (charA !== charR) mismatchesA.push({ posA: charA === '-' ? "GAP" : currentAPos, posR: charR === '-' ? "GAP" : currentRPos, baseA: charA, baseR: charR });
+            }
+    
+            if (!isHomozygousTrack) {
+                if (charB === charR && charB !== '-' && charR !== '-') {
+                    alignmentBarB += "|";
+                } else {
+                    alignmentBarB += " ";
+                    if (charB !== charR) mismatchesB.push({ posB: charB === '-' ? "GAP" : currentBPos, posR: charR === '-' ? "GAP" : currentRPos, baseB: charB, baseR: charR });
+                }
+            }
+    
+            if (charR !== '-') currentRPos++;
+            if (charA !== '-') currentAPos++;
+            if (charB !== '-') currentBPos++;
+        }
+    
+        let htmlBuffer = `<table style="width:100%; border-collapse: collapse; margin-bottom: 20px; background: #ffffff; color: #111111;">`;
+        
+        htmlBuffer += `<tr><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Query (Wave) Name</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;" colspan="2">Analysis Mode</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Strand</th></tr>`;
+        htmlBuffer += `<tr><td style="padding:8px; border:1px solid #ddd; color:#111;"><b>${fileName}</b></td><td style="padding:8px; border:1px solid #ddd; color: #2b542c; font-weight:bold;" colspan="2">CRISPR Phase Deconvolution</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${orientationLabel}</td></tr>`;
+        
+        htmlBuffer += `<tr><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Mutation Detect Position</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Allele A Length</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Allele B Length</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Reference Length</th></tr>`;
+        htmlBuffer += `<tr><td style="padding:8px; border:1px solid #ddd; color: #d9534f; font-weight:bold;">Ref Pos: ${data.indelStartRefPos}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${data.alleleA.replace(/-/g,'').length} bp</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${isHomozygousTrack ? "N/A" : data.alleleB.replace(/-/g,'').length + " bp"}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${data.referenceSegment.replace(/-/g,'').length} bp</td></tr>`;
+        
+        htmlBuffer += `<tr><td colspan='4' style="padding:12px; border:1px solid #ddd; background: #ffffff;">`;
+        htmlBuffer += `<p class='label' style="margin: 0 0 8px 0; font-size:12px; color:#333; font-weight:bold;">🌟 Triple-Strand Phase Alignment Window</p>`;
+        
+        htmlBuffer += `<div class='alignment-text-block' style="font-family: 'Courier New', Courier, monospace; white-space: pre; background: #1e1e1e; color: #ffffff !important; padding: 14px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-size: 14px; line-height: 1.6; font-weight: 500; letter-spacing: 0.5px;">`;
+        
+        // 🌟 Suppress output lines dynamically if tracks match identically
+        if (isHomozygousTrack) {
+            htmlBuffer += `Reference:    ${refSeqAligned}\n`;
+            htmlBuffer += `              ${alignmentBarA}\n`;
+            htmlBuffer += `Homozygous:   ${alleleAAligned}\n`;
+        } else {
+            htmlBuffer += `Reference:    ${refSeqAligned}\n`;
+            htmlBuffer += `              ${alignmentBarA}\n`;
+            htmlBuffer += `Allele A:     ${alleleAAligned}\n`;
+            htmlBuffer += `              ${alignmentBarB}\n`;
+            htmlBuffer += `Allele B:     ${alleleBAligned}\n`;
+        }
+        htmlBuffer += `</div>`;
+        
+        const totalMismatches = mismatchesA.length + mismatchesB.length;
+        if (totalMismatches > 0) {
+            htmlBuffer += `<details style="margin-top: 12px; color:#111;">`;
+            htmlBuffer += `<summary style="cursor:pointer; font-weight:bold; font-size:13px; color:#111;">▼ Detailed Heterozygous Indels & Mismatches List (${totalMismatches} items)</summary>`;
+            htmlBuffer += `<ul class='mismatch-list-box' style="margin-top:8px; padding-left:20px; list-style-type: disc; color:#111;">`;
+            
+            mismatchesA.forEach(mm => {
+                htmlBuffer += `<li style="font-size:13px; margin-bottom:4px; font-family:monospace; color:#111;">`;
+                htmlBuffer += `<span style="color:#2b542c; font-weight:bold;">[Allele A]</span> Position: ${mm.posA} (<span style="color:red; font-weight:bold;">${mm.baseA}</span>) &harr; Reference Position: ${mm.posR} (${mm.baseR})`;
+                htmlBuffer += `</li>`;
+            });
+    
+            if (!isHomozygousTrack) {
+                mismatchesB.forEach(mm => {
+                    htmlBuffer += `<li style="font-size:13px; margin-bottom:4px; font-family:monospace; color:#111;">`;
+                    htmlBuffer += `<span style="color:#d9534f; font-weight:bold;">[Allele B]</span> Position: ${mm.posB} (<span style="color:red; font-weight:bold;">${mm.baseB}</span>) &harr; Reference Position: ${mm.posR} (${mm.baseR})`;
+                    htmlBuffer += `</li>`;
+                });
+            }
+            
+            htmlBuffer += `</ul></details>`;
+        } else {
+            htmlBuffer += `<p class='label' style='color: green; font-weight: bold; margin-top: 10px; font-size:13px;'>No mismatches detected between phases.</p>`;
+        }
+        
+        htmlBuffer += `</td></tr></table><br><br>`;
+        container.insertAdjacentHTML('beforeend', htmlBuffer);
+    }
+
+
     // Analysis trigger using the live updated textbox inputs
     document.getElementById('runBtn').addEventListener('click', () => {
         const statusEl = document.getElementById('status');
@@ -486,9 +1154,8 @@
                 const align = bestMatch.align;
                 const rItem = bestMatch.ref;
 
-                // 🌟 ここが重要！
                 // RC鎖が選ばれた場合、すでにfinalQuerySeqはRC後の配列（A193GがC200Tのように美しく反転した状態）になっています。
-                // したがって、これ以降の座標計算は、順鎖（forward）と「全く同じシンプルなカウントアップ」で100%正確に処理できます！
+                // したがって、これ以降の座標計算は、順鎖（forward）と「全く同じシンプルなカウントアップ」で処理できます！
                 const qStart = align.qStart + 1;
                 const qEnd = align.qEnd + 1;
                 const rStart = align.rStart + 1;
@@ -643,7 +1310,7 @@
     // --- Ported Python Downstream Aggregator Core Backend Logic Blocks ---
     let summaryDataRegistry = [];
 
-// REPLACE the beginning of your 'aggregateBtn' listener down to the aggregateMap generation:
+    // REPLACE the beginning of your 'aggregateBtn' listener down to the aggregateMap generation:
     // Downstream Aggregator Script Loop (Fixed Variable Ordering & Reference Isolation)
     document.getElementById('aggregateBtn').addEventListener('click', () => {
         const xmin = parseInt(document.getElementById('xminInput').value) || 0;
@@ -721,7 +1388,6 @@
         const uniqueSamplesCount = new Set(discoveredMismatchesCache.filter(m => m.matched_ref === selectedRefName).map(m => m.query_name)).size || 1;
 
         // 🌟 PINPOINT COVERAGE DETECTION: Track the collective boundaries where alignments actually hit
-        // 🌟 【修正版・解決ルート】PINPOINT COVERAGE DETECTION: アライメントの真の最外境界を正しく取得
         const activeRefHits = discoveredMismatchesCache.filter(m => m.matched_ref === selectedRefName && m.subject_pos !== "GAP");
         let alignmentMinHit = xmin;
         let alignmentMaxHit = xmax;
@@ -746,13 +1412,12 @@
         document.getElementById('aggStatus').innerText = `Metrics computed successfully for "${selectedRefName}". Applied bounds window filter [${xmin} to ${xmax}].`;
     });
 
-    // High-Resolution Matplotlib Replicator (Reconstructs stacked bars, legends, grids, and labels via explicit SVG elements)
     // High-Resolution Matplotlib Replicator (Reconstructs accurate stacked paths, grids, and legend boxes matching your target file profile)
     function generateMatplotlibEmulationChart(data, xmin, xmax, totalSamples, alignMin, alignMax) {
         const container = document.getElementById('chartOutput');
         container.innerHTML = ""; // Clear baseline container space
 
-        // 🌟 ピンポイント修正：内部で cache を参照せず、完全に選別済みの 'data' のみから座標とパターンを抽出します
+        // 内部で cache を参照せず、完全に選別済みの 'data' のみから座標とパターンを抽出します
         let uniquePositions = Array.from(new Set(data.map(d => d.subject_pos))).sort((a, b) => a - b);
         let subPatternsFound = Array.from(new Set(data.map(d => d.sub_type))).sort();
 
@@ -904,7 +1569,7 @@
         });
         svgString += `   </g>\n  </g>\n </g>\n</svg>`;
 
-        // --- 【超重要】画面表示用とダウンロード用を完全に分離 ---
+        // --- 画面表示用とダウンロード用を完全に分離 ---
         
         // 1. ページ上への描画（インラインSVGとしてブラウザに解釈させる）
         const previewContainer = document.createElement("div");
@@ -921,7 +1586,6 @@
         downloadSvgBtn.style.backgroundColor = "#e67e22";
         downloadSvgBtn.innerText = "Download SVG";
         
-        // 🌟 このクリックリスナーの中身を完全に空白・改行なしのクリーンなストリームに修正します
         downloadSvgBtn.addEventListener('click', () => {
             // 💡 1文字目から狂いなくスタートさせるため、バックティック内の改行をすべて完全に排除
             let finalSvgOutput = '<?xml version="1.0" encoding="utf-8" standalone="no"?>';
@@ -1007,7 +1671,6 @@
             return;
         }
 
-        // 🌟 先頭列に "reference_name" カラムを追加
         const headers = ["reference_name", "subject_pos", "ref_base", "mut_base", "sub_type", "frequency", "amino_acid_mutation", "codon_translation", "detected_in_samples"];
         let csvRows = [headers.join(",")];
 
@@ -1162,6 +1825,658 @@
             document.getElementById('queryManager').style.display = 'none';
         }
     });
+    
+
+// For phase analysis   
+    // ======================================================================
+    //  完全オフライン動作のための生波形強度（DATA）制御コアエンジン
+    // ======================================================================
+
+    /**
+     * ArrayBufferからベースコールされた標準の1本鎖塩基配列のみをパースする（4バイト数値ロックでバグ完全回避）
+     */
+function parseAb1PrimaryFromBuffer(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    
+    // ヘッダー確認 (0x41424946 = "ABIF")
+    if (view.getUint32(0, false) !== 0x41424946) {
+        throw new Error("The selected file is not a valid AB1/ABIF Sanger chromatogram file.");
+    }
+
+    const dirNumElements = view.getInt32(18, false); 
+    const dirDataOffset = view.getInt32(26, false);  
+    
+    let offsetPBAS = -1;
+    let lenPBAS = 0;
+    let pbasFound = false;
+
+    // 1. 標準規格の「PBAS 1」(0x50424153) タグを最優先で探索
+    for (let i = 0; i < dirNumElements; i++) {
+        const entryOffset = dirDataOffset + (i * 28);
+        const tagValue = view.getUint32(entryOffset, false);
+        const tagNum = view.getInt32(entryOffset + 4, false);
+        
+        // 0x50424153 = "PBAS" かつ tagNum === 1
+        if (tagValue === 0x50424153 && tagNum === 1) {
+            const dataSize = view.getInt32(entryOffset + 16, false);
+            offsetPBAS = (dataSize <= 4) ? (entryOffset + 20) : view.getInt32(entryOffset + 20, false);
+            lenPBAS = view.getInt32(entryOffset + 12, false);
+            pbasFound = true;
+            break;
+        }
+    }
+
+    // 2. もしPBAS 1が見つからない場合、代替としてPBAM/PBAC/PBSEも一応スキャン
+    if (!pbasFound) {
+        for (let i = 0; i < dirNumElements; i++) {
+            const entryOffset = dirDataOffset + (i * 28);
+            const tagValue = view.getUint32(entryOffset, false);
+            
+            // PBAM(0x5042414D), PBAC(0x50424143), PBSE(0x50425345)
+            if (tagValue === 0x5042414D || tagValue === 0x50424143 || tagValue === 0x50425345) {
+                const dataSize = view.getInt32(entryOffset + 16, false);
+                offsetPBAS = (dataSize <= 4) ? (entryOffset + 20) : view.getInt32(entryOffset + 20, false);
+                lenPBAS = view.getInt32(entryOffset + 12, false);
+                pbasFound = true;
+                break;
+            }
+        }
+    }
+
+    // 3. 【究極の救済処置】それでもダメな場合、下流のparseAb1TracksFromBufferの結果から文字列をリビルド
+    if (!pbasFound || offsetPBAS === -1 || lenPBAS === 0) {
+        try {
+            // 下記のトラック抽出関数を回して、そのprimary塩基をつなぎ合わせる
+            const backupTracks = parseAb1TracksFromBuffer(arrayBuffer);
+            if (backupTracks && backupTracks.length > 0) {
+                const fallbackSeq = backupTracks.map(p => p.primary).join("");
+                return { sequence: fallbackSeq.toUpperCase().replace(/[^A-Za-z-]/g, '') };
+            }
+        } catch (e) {
+            // トラック抽出側も落ちた場合は以下のエラーを投げる
+        }
+        throw new Error("Failed to locate primary basecall tags (PBAS/PBSE/PBAM) within the binary buffer, and automated trace backtracking recovery has failed.");
+    }
+
+    // 通常の文字列展開
+    let seq = "";
+    for (let i = 0; i < lenPBAS; i++) {
+        seq += String.fromCharCode(view.getUint8(offsetPBAS + i));
+    }
+    return { sequence: seq.toUpperCase().replace(/[^A-Za-z-]/g, '') };
+}
+
+/**
+ * AB1ファイルから各ピークの強度情報を引き抜く
+ */
+/**
+ * 【修正版】AB1ファイルから各ピークの強度情報を引き抜く（ソートバグ修正版）
+ */
+/**
+ * 【決定版】AB1ファイルから各ピークの強度情報を引き抜く
+ * JavaScriptのソートバグを回避するため、if文による直接4値比較ロジックに刷新。
+ * これにより文字化けが完全に解消され、正しい主塩基配列が生成されます。
+ */
+function parseAb1TracksFromBuffer(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const dirNumElements = view.getInt32(18, false); 
+    const dirDataOffset = view.getInt32(26, false);  
+    
+    let lenPLOC = 0;
+    let offsetPLOC = -1;
+    let fwoString = "ACGT"; 
+    let offsetDATA9 = -1, offsetDATA10 = -1, offsetDATA11 = -1, offsetDATA12 = -1;
+
+    for (let i = 0; i < dirNumElements; i++) {
+        const entryOffset = dirDataOffset + (i * 28);
+        const tagValue = view.getUint32(entryOffset, false);
+        const tagNum = view.getInt32(entryOffset + 4, false);
+        const dataSize = view.getInt32(entryOffset + 16, false);
+        const realOffset = (dataSize <= 4) ? (entryOffset + 20) : view.getInt32(entryOffset + 20, false);
+
+        if (tagValue === 0x504C4F43) { // "PLOC"
+            offsetPLOC = realOffset; 
+            lenPLOC = view.getInt32(entryOffset + 12, false) / 2; 
+        } else if (tagValue === 0x46574F5F) { // "FWO_"
+            fwoString = String.fromCharCode(
+                view.getUint8(entryOffset + 20),
+                view.getUint8(entryOffset + 21),
+                view.getUint8(entryOffset + 22),
+                view.getUint8(entryOffset + 23)
+            ).toUpperCase();
+        } else if (tagValue === 0x44415441) { // "DATA"
+            if (tagNum === 9)  offsetDATA9  = realOffset;
+            if (tagNum === 10) offsetDATA10 = realOffset;
+            if (tagNum === 11) offsetDATA11 = realOffset;
+            if (tagNum === 12) offsetDATA12 = realOffset;
+        }
+    }
+
+    if (offsetPLOC === -1 || offsetDATA9 === -1 || lenPLOC === 0) {
+        throw new Error("Failed to extract required DATA or PLOC tags necessary for chromatogram trace analysis.");
+    }
+
+    // FWO_の文字列から1文字ずつ抽出
+    const base9  = fwoString.charAt(0) || 'A';
+    const base10 = fwoString.charAt(1) || 'C';
+    const base11 = fwoString.charAt(2) || 'G';
+    const base12 = fwoString.charAt(3) || 'T';
+
+    const queryPeaks = [];
+    const noiseThresholdRatio = 0.20;
+
+    for (let i = 0; i < lenPLOC; i++) {
+        const peakIndex = view.getUint16(offsetPLOC + (i * 2), false); 
+        
+        // 各チャンネルの生強度を取得
+        const val9  = view.getUint16(offsetDATA9  + (peakIndex * 2), false);
+        const val10 = view.getUint16(offsetDATA10 + (peakIndex * 2), false);
+        const val11 = view.getUint16(offsetDATA11 + (peakIndex * 2), false);
+        const val12 = view.getUint16(offsetDATA12 + (peakIndex * 2), false);
+
+        // 🌟 配列化して、直接ループで「最大値」と「2番目の値」を確実に特定する（バグの出ない手法）
+        const channels = [
+            { base: base9,  val: val9 },
+            { base: base10, val: val10 },
+            { base: base11, val: val11 },
+            { base: base12, val: val12 }
+        ];
+
+        let max1 = channels.at(0);
+        let max2 = channels.at(1);
+
+        // max1 と max2 の初期順序を整理
+        if (max2.val > max1.val) {
+            const temp = max1;
+            max1 = max2;
+            max2 = temp;
+        }
+
+        // 残り2つのチャンネルを比較
+        for (let c = 2; c < 4; c++) {
+            const current = channels.at(c);
+            if (current.val > max1.val) {
+                max2 = max1;
+                max1 = current;
+            } else if (current.val > max2.val) {
+                max2 = current;
+            }
+        }
+
+        const primary = max1.base;
+        const primaryValue = max1.val;
+        let secondary = "-";
+
+        // 2番目のピークがノイズ閾値を超えているか判定（ヘテロ接合体検出用）
+        if (max2.val > primaryValue * noiseThresholdRatio) {
+            secondary = max2.base;
+        }
+
+        queryPeaks.push({ pos: i, primary: primary, secondary: secondary });
+    }
+    return queryPeaks;
+}
+
+/**
+ * サンガー波形ファイル（AB1）を読み込み、CRISPRインデルのデコンボリューションを
+ * 一気通貫で実行する統合エントリー関数です。関数の競合や古いメモリをすべてリセットします。
+ * 
+ * @param {ArrayBuffer} arrayBuffer - 読み込んだAB1ファイルのバイナリデータ
+ * @param {string} refSeq - 比較対象のワイルドタイプ（野生型）リファレンス配列
+ * @param {number} offsetSetting - アンカー同期の検索窓幅調整（通常は0または1）
+ */
+/**
+ * Fully stabilized Sanger trace deconvolution workflow.
+ * Maps peak trace indices directly to the full-length primary sequence string 
+ * to guarantee that gRNA matches found in the text area are always found by the analyzer.
+ */
+/**
+ * Fully stabilized, self-contained Sanger trace deconvolution workflow.
+ * Solves all scope gaps, typing errors, variable definition slips, and peak-to-text mismatches.
+ */
+/**
+ * Fully stabilized Sanger trace deconvolution workflow.
+ * Automatically mirrors and corrects the peak array layout when a reverse-complement 
+ * gRNA is discovered, eliminating inverted gap direction bugs.
+ */
+/**
+ * サンガー波形データからフェージング（アレル分離）を行うメインワークフロー
+ */
+/**
+ * Sanger Waveform Phase Deconvolution Workflow (Fixed & Unified)
+ */
+/**
+ * Helper to compute the reverse complement of a sequence string
+ */
+function getReverseComplementString(seq) {
+    const map = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', '-': '-' };
+    return seq.split('').reverse().map(b => map[b] || b).join('');
+}
+
+/**
+ * 🗂️ MAIN BATCH CONTROLLER
+ * Processes multiple uploaded .ab1 files seamlessly.
+ */
+/**
+ * 🗂️ MAIN BATCH CONTROLLER
+ */
+async function runSangerBatchPhaseAnalysis(fileList, refSeq, baseOffset = 20) {
+    const batchResults = [];
+
+    for (const file of fileList) {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // 1. Initial Quick Parse to extract raw text call
+            const primaryResult = parseAb1PrimaryFromBuffer(arrayBuffer);
+            const rawTextSeq = primaryResult.sequence ? primaryResult.sequence.toUpperCase() : "";
+            
+            if (!rawTextSeq) {
+                throw new Error("Failed to extract primary basecall sequence from AB1 file headers.");
+            }
+
+            // 2. AUTOMATED STRAND DETECTION MATRIX
+            const alignForward = needlemanWunschCore(refSeq, rawTextSeq);
+            const alignReverse = needlemanWunschCore(refSeq, getReverseComplementString(rawTextSeq));
+
+            const isAb1FileReverseStrand = alignReverse.score > alignForward.score;
+
+            // 3. Execute Core Phase Deconvolution Logic
+            const phaseOutput = runCorePhaseDeconvolution(arrayBuffer, refSeq, baseOffset, isAb1FileReverseStrand);
+
+            batchResults.push({
+                fileName: file.name,
+                status: "Success",
+                strandDetected: isAb1FileReverseStrand ? "Reverse Complement (Rev)" : "Forward (Fwd)",
+                alignmentScore: Math.max(alignForward.score, alignReverse.score),
+                data: phaseOutput
+            });
+
+        } catch (error) {
+            batchResults.push({
+                fileName: file.name,
+                status: "Error",
+                message: error.message
+            });
+        }
+    }
+    return batchResults;
+}
+
+/**
+ * CORE PHASE DECONVOLUTION ENGINE (Fixed Channel Array Evaluation)
+ */
+function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1FileReverseStrand) {
+    const view = new DataView(arrayBuffer);
+    
+    // Parse baseline directories
+    const dirNumElements = view.getUint32(18, false); 
+    const dirDataOffset = view.getUint32(26, false);  
+    let lenPLOC = 0, offsetPLOC = -1, fwoString = "ACGT"; 
+    const dataOffsets = { 9: -1, 10: -1, 11: -1, 12: -1 }; 
+
+    for (let i = 0; i < dirNumElements; i++) {
+        const entryOffset = dirDataOffset + (i * 28);
+        if (entryOffset + 28 > arrayBuffer.byteLength) break;
+        const tagValue = view.getUint32(entryOffset, false);
+        const tagNum = view.getInt32(entryOffset + 4, false);
+        const dataSize = view.getUint32(entryOffset + 16, false);
+        const realOffset = (dataSize <= 4) ? (entryOffset + 20) : view.getUint32(entryOffset + 20, false);
+
+        if (tagValue === 0x504C4F43) { 
+            offsetPLOC = realOffset; 
+            lenPLOC = view.getUint32(entryOffset + 16, false) / 2; 
+        } else if (tagValue === 0x46574F5F) {
+            fwoString = String.fromCharCode(view.getUint8(entryOffset + 20), view.getUint8(entryOffset + 21), view.getUint8(entryOffset + 22), view.getUint8(entryOffset + 23)).toUpperCase();
+        } else if (tagValue === 0x44415441) { 
+            if (tagNum >= 9 && tagNum <= 12) dataOffsets[tagNum] = realOffset; 
+        }
+    }
+
+    if (offsetPLOC === -1 || lenPLOC === 0 || dataOffsets[9] === -1) {
+        throw new Error("Failed to extract required DATA or PLOC tags necessary for chromatogram trace analysis.");
+    }
+
+    const baseMap = { 
+        0: fwoString.charAt(0) || 'A', 
+        1: fwoString.charAt(1) || 'C', 
+        2: fwoString.charAt(2) || 'G', 
+        3: fwoString.charAt(3) || 'T' 
+    };
+    const noiseThresholdRatio = 0.20; 
+
+    let queryPeakPool = [];
+    for (let i = 0; i < lenPLOC; i++) {
+        const peakIndex = view.getUint16(offsetPLOC + (i * 2), false); 
+        
+        // 🌟 CRITICAL FIX: Explicitly evaluate dynamic key parameters from dataOffsets dictionary map
+        const vals = [
+            { base: baseMap[0], val: view.getUint16(dataOffsets[9]  + (peakIndex * 2), false) },
+            { base: baseMap[1], val: view.getUint16(dataOffsets[10] + (peakIndex * 2), false) },
+            { base: baseMap[2], val: view.getUint16(dataOffsets[11] + (peakIndex * 2), false) },
+            { base: baseMap[3], val: view.getUint16(dataOffsets[12] + (peakIndex * 2), false) }
+        ];
+        
+        // Safely sort intensities descending
+        vals.sort((a, b) => b.val - a.val);
+        const max1 = vals[0];
+        const max2 = vals[1];
+
+        if (max2.val > max1.val * noiseThresholdRatio && max1.base !== max2.base) {
+            queryPeakPool.push([max1.base, max2.base]); 
+        } else {
+            queryPeakPool.push([max1.base]); 
+        }
+    }
+
+    if (isAb1FileReverseStrand) {
+        const compMap = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C' };
+        queryPeakPool.reverse();
+        queryPeakPool = queryPeakPool.map(bases => bases.map(b => compMap[b] || b));
+    }
+
+    const regexTokens = queryPeakPool.map(bases => bases.length > 1 ? `[${bases.join("")}]` : `${bases}`);
+
+    const gRnaInputEl = document.getElementById("gRnaInput");
+    let gRnaSeq = gRnaInputEl ? gRnaInputEl.value.trim().toUpperCase().replace(/[^A-Z]/g, '') : "";
+    if (!gRnaSeq) throw new Error("Input a valid anchor sequence.");
+    
+    let waveGnaIndex = queryPeakPool.map(b => b[0]).join("").indexOf(gRnaSeq);
+    let refGnaIndex = refSeq.indexOf(gRnaSeq);
+
+    if (refGnaIndex === -1 || waveGnaIndex === -1) {
+        throw new Error("The specified anchor sequence could not be located within the reference or trace arrays.");
+    }
+
+    const queryCutSite = waveGnaIndex + gRnaSeq.length - 3;
+    const refCutSite = refGnaIndex + gRnaSeq.length - 3;
+
+    // --- [STEP 1] 変異開始点の検出 ---
+    let currentQueryIdx = queryCutSite;
+    let currentRefIdx = refCutSite;
+    let mutationStartQuery = -1;
+    let mutationStartRef = -1;
+
+    // 🌟 順鎖と逆鎖で、カットサイトからの最初の変異スキャン方向を分岐
+    if (!isAb1FileReverseStrand) {
+        // 【順鎖】3'下流（インデックス増加方向）へ向かって最初の変異を探索
+        while (currentQueryIdx < queryPeakPool.length && currentRefIdx < refSeq.length) {
+            const allowedBases = queryPeakPool[currentQueryIdx];
+            const refBase = refSeq.charAt(currentRefIdx);
+            if (allowedBases.length > 1 || !allowedBases.includes(refBase)) {
+                mutationStartQuery = currentQueryIdx;
+                mutationStartRef = currentRefIdx;
+                break;
+            }
+            currentQueryIdx++;
+            currentRefIdx++;
+        }
+    } else {
+        // 【逆鎖】順鎖リファレンスの5'上流（インデックス減少方向）へ向かって最初の変異を探索
+        while (currentQueryIdx >= 0 && currentRefIdx >= 0) {
+            const allowedBases = queryPeakPool[currentQueryIdx];
+            const refBase = refSeq.charAt(currentRefIdx);
+            if (allowedBases.length > 1 || !allowedBases.includes(refBase)) {
+                mutationStartQuery = currentQueryIdx;
+                mutationStartRef = currentRefIdx;
+                break;
+            }
+            currentQueryIdx--;
+            currentRefIdx--;
+        }
+    }
+
+    if (mutationStartQuery === -1) {
+        throw new Error("No mutation footprint or phase shift detected within the trace profile.");
+    }
+
+    // --- [STEP 2] スライディング k-mer プローブによる同期領域の探索 ---
+    const probeSize = 20;
+    let foundQueryIdx = -1;
+    let finalRefProbeStr = "";
+    
+    // 逆鎖の場合は、gRNAの上流（5'側）へ向かって20-merのプローブをスライドさせる
+    let probeRefStart = !isAb1FileReverseStrand
+        ? (refGnaIndex + gRnaSeq.length + offsetSetting) // 順鎖: gRNAのさらに下流から開始
+        : (refGnaIndex - offsetSetting - probeSize);     // 逆鎖: gRNAのさらに上流から開始
+
+    if (!isAb1FileReverseStrand) {
+        // 【順鎖】下流へスライド
+        while (probeRefStart + probeSize <= refSeq.length) {
+            const refProbeStr = refSeq.substring(probeRefStart, probeRefStart + probeSize);
+            let isMatchAtAnyPos = false;
+
+            for (let q = mutationStartQuery; q <= regexTokens.length - probeSize; q++) {
+                let isMatch = true;
+                for (let k = 0; k < probeSize; k++) {
+                    if (!regexTokens[q + k].replace(/[\[\]]/g, '').includes(refProbeStr.charAt(k))) { isMatch = false; break; }
+                }
+                if (isMatch) { foundQueryIdx = q; finalRefProbeStr = refProbeStr; isMatchAtAnyPos = true; break; }
+            }
+            if (isMatchAtAnyPos) break;
+            probeRefStart++;
+        }
+    } else {
+        // 【逆鎖】上流へスライド（インデックスを減算していく）
+        while (probeRefStart >= 0) {
+            const refProbeStr = refSeq.substring(probeRefStart, probeRefStart + probeSize);
+            let isMatchAtAnyPos = false;
+
+            // 逆鎖ファイルにとっての進行方向（3'下流＝配列のインデックス減少方向）に向かって探索
+            for (let q = mutationStartQuery; q >= 0; q--) {
+                if (q + probeSize > regexTokens.length) continue;
+                let isMatch = true;
+                for (let k = 0; k < probeSize; k++) {
+                    if (!regexTokens[q + k].replace(/[\[\]]/g, '').includes(refProbeStr.charAt(k))) { isMatch = false; break; }
+                }
+                if (isMatch) { foundQueryIdx = q; finalRefProbeStr = refProbeStr; isMatchAtAnyPos = true; break; }
+            }
+            if (isMatchAtAnyPos) break;
+            probeRefStart--;
+        }
+    }
+    
+    const distanceBetweenPoints = Math.abs(probeRefStart - mutationStartRef);
+    
+    // 同期ポイントが変異開始点のすぐそば（例: 5bp以内）で見つかった場合は、変異なしと判定
+    if (foundQueryIdx === -1 || distanceBetweenPoints <= 5) {
+        // 変異がなかったものとして、全長リファレンスと同じ配列をそのまま返す
+        return {
+            indelStartRefPos: "None", // 画面上での誤解を防ぐために文字列 "None" を明記
+            indelEndRefPos: "None",
+            referenceSegment: refSeq, 
+            alleleA: refSeq,
+            alleleB: refSeq
+        };
+    }
+    
+    if (foundQueryIdx === -1) {
+        throw new Error("Failed to identify the downstream realignment boundary (secondary anchor point).");
+    }
+
+    // --- [STEP 3] 同期ヒット位置からカットサイトに向かって逆算スキャン（インデル分離） ---
+    // ヒットした20-merの「変異側境界の1文字」からスタート
+    let scanQuery = !isAb1FileReverseStrand ? (foundQueryIdx - 1) : (foundQueryIdx + probeSize);
+    let scanRef = !isAb1FileReverseStrand ? (probeRefStart - 1) : (probeRefStart + probeSize);
+
+    let alleleA_Core = [];
+    let alleleB_Core = [];
+
+    if (!isAb1FileReverseStrand) {
+        // 【順鎖】右(3')から左(5')のカットサイトへ戻る
+        while (scanQuery >= mutationStartQuery && scanRef >= mutationStartRef) {
+            const allowedBases = queryPeakPool[scanQuery];
+            const refBase = refSeq.charAt(scanRef);
+            if (allowedBases.includes(refBase)) {
+                alleleA_Core.unshift(refBase);
+                alleleB_Core.unshift(allowedBases.length > 1 ? allowedBases.find(b => b !== refBase) : refBase);
+                scanQuery--; scanRef--;
+            } else {
+                alleleA_Core.unshift("-");
+                alleleB_Core.unshift(allowedBases[0]);
+                scanQuery--;
+            }
+        }
+    } else {
+        // 【逆鎖】左(5')から右(3')のカットサイトへ戻る（インデックスは増加方向）
+        while (scanQuery <= mutationStartQuery && scanRef <= mutationStartRef) {
+            const allowedBases = queryPeakPool[scanQuery];
+            const refBase = refSeq.charAt(scanRef);
+            if (allowedBases.includes(refBase)) {
+                alleleA_Core.push(refBase); // 逆鎖は左から右へ回収するため push
+                alleleB_Core.push(allowedBases.length > 1 ? allowedBases.find(b => b !== refBase) : refBase);
+                scanQuery++; scanRef++;
+            } else {
+                alleleA_Core.push("-");
+                alleleB_Core.push(allowedBases[0]);
+                scanQuery++;
+            }
+        }
+    }
+
+    // 未分離領域（インデルの中心の隙間）の回収
+    let centerQueryStrB = "";
+    let centerRefStr = "";
+    
+    if (!isAb1FileReverseStrand) {
+        for (let x = mutationStartQuery; x <= scanQuery; x++) centerQueryStrB += queryPeakPool[x][0];
+        centerRefStr = refSeq.substring(mutationStartRef, scanRef + 1);
+    } else {
+        for (let x = scanQuery; x <= mutationStartQuery; x++) centerQueryStrB += queryPeakPool[x][0];
+        centerRefStr = refSeq.substring(scanRef, mutationStartRef + 1);
+    }
+    
+    let alignedQueryA = "-".repeat(centerRefStr.length);
+    let alignedQueryB = centerQueryStrB;
+    let alignedRefCenter = centerRefStr;
+
+    if (centerRefStr.length < centerQueryStrB.length) {
+        const gapSize = centerQueryStrB.length - centerRefStr.length;
+        alignedRefCenter += "-".repeat(gapSize);
+        alignedQueryA += "-".repeat(gapSize);
+    } else if (centerRefStr.length > centerQueryStrB.length) {
+        const gapSize = centerRefStr.length - centerQueryStrB.length;
+        alignedQueryB += "-".repeat(gapSize);
+    }
+
+    // --- [STEP 4] 順鎖リファレンス軸に完全同期した全長配列の組み立て ---
+    let finalRef, finalA, finalB;
+
+    if (!isAb1FileReverseStrand) {
+        const shared5Prime = refSeq.substring(0, mutationStartRef);
+        const confirmed3Prime = alleleA_Core.join("") + refSeq.substring(probeRefStart);
+        finalRef = shared5Prime + alignedRefCenter + confirmed3Prime;
+        finalA   = shared5Prime + alignedQueryA + confirmed3Prime;
+        finalB   = shared5Prime + alignedQueryB + (alleleB_Core.join("") + refSeq.substring(probeRefStart));
+    } else {
+        // 【逆鎖】リファレンス上の位置関係が「逆転」しているため、パーツの結合順序を左右反転させる
+        const shared3Prime = refSeq.substring(mutationStartRef + 1);
+        const confirmed5Prime = refSeq.substring(0, probeRefStart + probeSize) + alleleA_Core.join("");
+        
+        // 順鎖リファレンスの座標軸(5' -> 3')の向きに完全整合するように配置
+        finalRef = confirmed5Prime + alignedRefCenter + shared3Prime;
+        finalA   = confirmed5Prime + alignedQueryA + shared3Prime;
+        finalB   = (refSeq.substring(0, probeRefStart + probeSize) + alleleB_Core.join("")) + alignedQueryB + shared3Prime;
+    }
+
+    return {
+        indelStartRefPos: !isAb1FileReverseStrand ? mutationStartRef : probeRefStart,
+        indelEndRefPos: !isAb1FileReverseStrand ? probeRefStart : mutationStartRef,
+        referenceSegment: finalRef, 
+        alleleA: finalA,
+        alleleB: finalB
+    };
+}
+
+/**
+ * Fast Needleman-Wunsch Scoring Core (No traceback needed for simple score matrix)
+ * Used to automatically determine if the .ab1 file orientation is Forward or Reverse.
+ */
+function needlemanWunschCore(ref, query) {
+    const MATCH = 2, MISMATCH = -1, GAP = -2;
+    const n = ref.length, m = query.length;
+    
+    // Memory optimization: Use only two rows instead of a full 2D matrix
+    let prevRow = new Int32Array(m + 1);
+    let currRow = new Int32Array(m + 1);
+
+    for (let j = 0; j <= m; j++) prevRow[j] = j * GAP;
+
+    for (let i = 1; i <= n; i++) {
+        currRow[0] = i * GAP;
+        const rChar = ref.charAt(i - 1);
+        for (let j = 1; j <= m; j++) {
+            const scoreDiag = prevRow[j - 1] + (rChar === query.charAt(j - 1) ? MATCH : MISMATCH);
+            const scoreLeft = currRow[j - 1] + GAP;
+            const scoreUp = prevRow[j] + GAP;
+            currRow[j] = Math.max(scoreDiag, scoreLeft, scoreUp);
+        }
+        prevRow.set(currRow);
+    }
+    return { score: prevRow[m] };
+}
+
+/**
+ * Fallback baseline function to parse primary text sequence directly from ABIF buffer headers.
+ * Ensure this exists in your script or maps to your existing .ab1 text parser.
+ */
+/**
+ * Needleman-Wunsch Global Alignment Function
+ */
+function needlemanWunsch(ref, query) {
+    const MATCH = 2;
+    const MISMATCH = -1;
+    const GAP = -2;
+
+    const n = ref.length;
+    const m = query.length;
+
+    const score = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    const trace = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1)); 
+
+    for (let i = 0; i <= n; i++) { score[i][0] = i * GAP; trace[i][0] = 3; }
+    for (let j = 0; j <= m; j++) { score[0][j] = j * GAP; trace[0][j] = 2; }
+
+    for (let i = 1; i <= n; i++) {
+        const rChar = ref.charAt(i - 1);
+        for (let j = 1; j <= m; j++) {
+            const qChar = query.charAt(j - 1);
+            const matchScore = score[i - 1][j - 1] + (rChar === qChar ? MATCH : MISMATCH);
+            const horizScore = score[i][j - 1] + GAP;
+            const vertScore = score[i - 1][j] + GAP;
+
+            const max = Math.max(matchScore, horizScore, vertScore);
+            score[i][j] = max;
+
+            if (max === matchScore) trace[i][j] = 1;      
+            else if (max === horizScore) trace[i][j] = 2; 
+            else trace[i][j] = 3;                         
+        }
+    }
+
+    let alignedRef = "";
+    let alignedQuery = "";
+    let i = n, j = m;
+
+    while (i > 0 || j > 0) {
+        if (trace[i][j] === 1) {
+            alignedRef = ref.charAt(i - 1) + alignedRef;
+            alignedQuery = query.charAt(j - 1) + alignedQuery;
+            i--; j--;
+        } else if (trace[i][j] === 2) {
+            alignedRef = "-" + alignedRef;
+            alignedQuery = query.charAt(j - 1) + alignedQuery;
+            j--;
+        } else {
+            alignedRef = ref.charAt(i - 1) + alignedRef;
+            alignedQuery = "-" + alignedQuery;
+            i--;
+        }
+    }
+
+    return { alignedRef, alignedQuery };
+}
+
 </script>
 </body>
 </html>
