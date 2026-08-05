@@ -208,7 +208,7 @@
                         </div>
                         <div style="display: flex; gap: 15px; align-items: center;">
                             <label><strong>Secondary Anchor Search Offset (from Cut Site):</strong> 
-                                <input type="number" id="anchorOffsetInput" value="20" min="5" max="100" style="width: 50px; padding: 2px 4px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center;"> bp
+                                <input type="number" id="anchorOffsetInput" value="50" min="5" max="100" style="width: 50px; padding: 2px 4px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center;"> bp
                             </label>
                             <span style="color: #64748b; font-size: 11px;"> *Input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of indels. No strict length limit. The software automatically handles both forward (upstream) and reverse-complement (downstream) orientations based on your forward reference.
 </span>
@@ -551,327 +551,416 @@
         }
     }
 
-    // 🌟 全アレルの生配列をプールし、Progressive多重整列とギャップ伝播で3'末端まで完全同期させるエンジン
-    document.getElementById('msaBtn')?.addEventListener('click', () => {
-        const xmin = Math.max(1, parseInt(document.getElementById('msaXMinInput').value) || 1);
-        const xmax = parseInt(document.getElementById('msaXMaxInput').value) || 9999;
-        
-        const msaOutputContainer = document.getElementById('msaChartOutput');
-        if (!msaOutputContainer) {
-            console.error("【致命的】画面上に 'msaChartOutput' というIDのコンテナが見つかりません。HTMLを確認してください。");
-            alert("Error: msaChartOutput not found.");
-            return;
+// =========================================================================
+// 🌟【エラー完全根絶・完全同期版】多重整列生成ボタン（msaBtn）イベントリスナー
+// =========================================================================
+document.getElementById('msaBtn')?.addEventListener('click', () => {
+    const xmin = Math.max(1, parseInt(document.getElementById('msaXMinInput').value) || 1);
+    const xmax = parseInt(document.getElementById('msaXMaxInput').value) || 9999;
+    
+    const msaOutputContainer = document.getElementById('msaChartOutput');
+    if (!msaOutputContainer) return;
+    msaOutputContainer.innerHTML = ""; 
+
+    if (!window.globalPhasedSequencesPool || window.globalPhasedSequencesPool.length === 0) {
+        msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px; font-weight:bold;">Error: Phased sequence pool is empty. Please run Phase Analysis first.</p>`;
+        return;
+    }
+
+    //const refTextArea = document.getElementById("refTextArea");
+    // --- [リファレンス取得部] 🌟改行やヘッダーによる千切れを完全防止 ---
+    const rawRefValue = document.getElementById("refTextArea").value;
+    
+    // 💡 1行ずつに分解し、> で始まるヘッダー行を完全に除外した上で、純粋なアルファベットだけを結合する
+    const baseRefSequence = rawRefValue
+        .split('\n')
+        .filter(line => !line.trim().startsWith('>')) // ヘッダー行を完全に排除
+        .join('')
+        .replace(/[^A-Za-z]/g, '') // アルファベット以外を排除
+        .toUpperCase();
+
+    if (!baseRefSequence) {
+        alert("Error: Reference nucleotide sequence missing context.");
+        return;
+    }
+
+
+    // --- [STEP 1] リファレンスとプール内の配列を統合（データ可視化デバッグ版） ---
+    const rawSequencePool = [
+        { name: "Reference", seq: baseRefSequence }
+    ];
+
+    window.globalPhasedSequencesPool.forEach((track, index) => {
+        let rawExtracted = track.seq || track.sequence || track.alleleA || track.alleleB || "";
+        rawExtracted = String(rawExtracted).trim();
+
+        // 💡 正規表現にかける前の「生の文字数」を計測
+        const rawLength = rawExtracted.length;
+
+        // 大文字化して、アルファベットとハイフン以外を消去
+        let cleanedSequence = rawExtracted.toUpperCase().replace(/[^A-Z-]/g, '');
+
+        // 🔍 コンソールに配列の長さの遷移を詳細に出力
+        console.log(`[SAMPLE DEBUG] インデックス ${index}: ${track.name || "Unknown"}`);
+        console.log(`  -> 抽出された生の文字数: ${rawLength} 文字`);
+        console.log(`  -> クレンジング後の塩基長: ${cleanedSequence.length} bp`);
+        if (rawLength > 0) {
+            console.log(`  -> 生データの先頭50文字: "${rawExtracted.substring(0, 50)}"`);
+            console.log(`  -> 生データの末尾50文字: "${rawExtracted.substring(Math.max(0, rawLength - 50))}"`);
         }
-        msaOutputContainer.innerHTML = "<p style='color:#31708f;'>⏳ アライメント計算中...（配列数を確認しています）</p>";
-    
-        // --- [データ検証] ---
-        if (!window.globalPhasedSequencesPool || window.globalPhasedSequencesPool.length === 0) {
-            msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px; font-weight:bold;">Error: Phased sequence pool is empty. Please run Phase Analysis first.</p>`;
-            return;
-        }
-    
-        const refTextArea = document.getElementById("refTextArea");
-        if (!refTextArea) {
-            alert("Error: refTextArea not found.");
-            return;
-        }
-        
-        // リファレンス配列の抽出（改行やスペースを徹底除去）
-        const baseRefSequence = refTextArea.value.replace(/>.*/g, '').replace(/[^A-Za-z-]/g, '').toUpperCase();
-        if (!baseRefSequence) {
-            alert("Error: Reference nucleotide sequence missing context.");
-            return;
-        }
-    
-        console.log(`[MSA開始] リファレンス長さ: ${baseRefSequence.length} bp`);
-        console.log(`[MSA開始] プール内の配列数: ${window.globalPhasedSequencesPool.length} 本`);
-    
-        // --- [STEP 1] 全ての配列を統合 ---
-        const rawSequencePool = [
-            { name: "Reference", seq: baseRefSequence.replace(/-/g, '') }
-        ];
-    
-        window.globalPhasedSequencesPool.forEach((track, idx) => {
-            let extractedSequenceString = track.seq || track.alleleA || track.alleleB || "";
-            extractedSequenceString = String(extractedSequenceString).toUpperCase().replace(/[^A-Z-]/g, '');
-    
-            rawSequencePool.push({
-                name: track.name || track.fileName || `Sequence_${idx + 1}`,
-                seq: extractedSequenceString.replace(/-/g, '') 
-            });
+
+        rawSequencePool.push({
+            name: track.name || `Unknown_Allele_${index}`,
+            seq: cleanedSequence 
         });
-    
-        // --- [STEP 2] Needleman-Wunsch アルゴリズム ---
-        function computePureNW(seq1, seq2) {
-            const MATCH = 2, MISMATCH = -1, GAP = -2;
-            const n = seq1.length, m = seq2.length;
-            
-            const score = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
-            const trace = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
-    
-            for (let i = 0; i <= n; i++) { score[i][0] = i * GAP; trace[i][0] = 3; }
-            for (let j = 0; j <= m; j++) { score[0][j] = j * GAP; trace[0][j] = 2; }
-    
-            for (let i = 1; i <= n; i++) {
-                const c1 = seq1.charAt(i - 1);
-                for (let j = 1; j <= m; j++) {
-                    const c2 = seq2.charAt(j - 1);
-                    const matchScore = score[i - 1][j - 1] + (c1 === c2 ? MATCH : MISMATCH);
-                    const horizScore = score[i][j - 1] + GAP;
-                    const vertScore = score[i - 1][j] + GAP;
-                    
-                    const max = Math.max(matchScore, horizScore, vertScore);
-                    score[i][j] = max;
-                    
-                    if (max === matchScore) trace[i][j] = 1;
-                    else if (max === horizScore) trace[i][j] = 2;
-                    else trace[i][j] = 3;
+    });
+
+    // --- [STEP 3] 🌟【アレル汚染完全防御】個別マッピング ＋ 独立マトリックス集約 (Aggregation) ---
+    const individualAlignments = [];
+    const maxInsertionsAtRefPos = new Array(baseRefSequence.length + 1).fill(0);
+
+    for (let p = 1; p < rawSequencePool.length; p++) {
+        const nextItem = rawSequencePool[p];
+        
+        const sw = smithWatermanForMSA(nextItem.seq, baseRefSequence);
+        // 元のシステムが nw.a1 / nw.a2 を要求しているので、ここでサクッと翻訳してあげるだけ
+        const nw = { a1: sw.refAligned, a2: sw.queryAligned };
+        
+        let refCharIdx = 0;
+        let currentInsertCount = 0;
+        
+        // クエリ独自の「挿入文字」と「通常塩基/欠失」を完全に独立して記録するコンテナ
+        const insertionMapForThisQuery = Array.from({ length: baseRefSequence.length + 1 }, () => "");
+        const deletionMapForThisQuery = new Array(baseRefSequence.length).fill("-");
+
+        for (let g = 0; g < nw.a1.length; g++) {
+            if (nw.a1[g] === "-") {
+                // クエリ側が独自に持っている挿入塩基（リファレンスには存在しないアレル）
+                currentInsertCount++;
+                insertionMapForThisQuery[refCharIdx] += nw.a2[g];
+            } else {
+                if (currentInsertCount > maxInsertionsAtRefPos[refCharIdx]) {
+                    maxInsertionsAtRefPos[refCharIdx] = currentInsertCount;
                 }
+                // 💡【重要】リファレンスの文字(nw.a1)をコピーするのではなく、
+                // クエリ側が持っている生の文字(nw.a2)だけを1対1でダイレクトに代入。これで汚染を永久に遮断。
+                deletionMapForThisQuery[refCharIdx] = nw.a2[g];
+                refCharIdx++;
+                currentInsertCount = 0;
             }
-    
-            let aligned1 = "", aligned2 = "";
-            let i = n, j = m;
-            while (i > 0 || j > 0) {
-                if (i > 0 && j > 0 && trace[i][j] === 1) {
-                    aligned1 = seq1.charAt(i - 1) + aligned1; aligned2 = seq2.charAt(j - 1) + aligned2; i--; j--;
-                } else if (j > 0 && (i === 0 || trace[i][j] === 2)) {
-                    aligned1 = "-" + aligned1; aligned2 = seq2.charAt(j - 1) + aligned2; j--;
-                } else if (i > 0 && (j === 0 || trace[i][j] === 3)) {
-                    aligned1 = seq1.charAt(i - 1) + aligned1; aligned2 = "-" + aligned2; i--;
-                } else {
-                    break; 
-                }
-            }
-            return { a1: aligned1, a2: aligned2 };
         }
-    
-        // --- [NEW STEP 3] 🧬 Reference-Centric Coordinate Merge (Star Alignment Core) ---
-        // 1対1のペアワイズ結果をリファレンスの絶対座標軸へ一元的にマッピングし、縦ラインを完全同期
-        
-        // 各クエリ配列をリファレンスと個別に1対1でペアワイズアライメント（インサート情報を抽出）
-        const pairwiseAlignments = [];
-        
-        // リファレンス側の最大長（インサートによる拡張分）を追跡するための仮想インサート配列
-        // 各リファレンス座位(0..baseRefSequence.length)の直後に最大何文字の挿入配列が入るかを記録
-        const maxInsertionsAtPos = new Int32Array(baseRefSequence.length + 1);
+        if (currentInsertCount > maxInsertionsAtRefPos[refCharIdx]) {
+            maxInsertionsAtRefPos[refCharIdx] = currentInsertCount;
+        }
 
-        for (let p = 0; p < window.globalPhasedSequencesPool.length; p++) {
-            const track = window.globalPhasedSequencesPool[p];
-            let qSeq = track.seq || track.alleleA || track.alleleB || "";
-            qSeq = String(qSeq).toUpperCase().replace(/[^A-Z]/g, ''); // クエリのギャップをクリア
+        individualAlignments.push({
+            name: nextItem.name,
+            insertionMap: insertionMapForThisQuery,
+            deletionMap: deletionMapForThisQuery
+        });
+    }
 
-            // リファレンスと1対1で最適パスを再計算 (もしくは既存のペアワイズ結果があればそれを流用可能)
-            const pair = computePureNW(baseRefSequence, qSeq);
-            pairwiseAlignments.push({
-                name: track.name || track.fileName || `Sequence_${p + 1}`,
-                refAligned: pair.a1,  // リファレンス側（ギャップを含む）
-                queryAligned: pair.a2 // クエリ側（ギャップを含む）
+    // 2. マトリックスの再構築（集計）
+    let finalMasterRef = "";
+    let aggregatedMatrix = [ { name: "Reference", aligned: "" } ];
+    individualAlignments.forEach(align => {
+        aggregatedMatrix.push({ name: align.name, aligned: "" });
+    });
+
+    for (let r = 0; r <= baseRefSequence.length; r++) {
+        // A. 挿入（ギャップ拡張）フェーズ
+        const requiredGapLen = maxInsertionsAtRefPos[r];
+        if (requiredGapLen > 0) {
+            finalMasterRef += "-".repeat(requiredGapLen);
+            aggregatedMatrix[0].aligned += "-".repeat(requiredGapLen);
+
+            individualAlignments.forEach((align, aIdx) => {
+                const myInsertion = align.insertionMap[r];
+                const paddingNeeded = requiredGapLen - myInsertion.length;
+                // クエリ固有の挿入塩基を配置し、残りは純粋なギャップで同期
+                aggregatedMatrix[aIdx + 1].aligned += myInsertion + "-".repeat(paddingNeeded);
             });
+        }
 
-            // このクエリがリファレンスの各ポジションにどれだけの挿入(インサート)を作ったかをスキャン
-            let refPos = 0;
-            let currentInsertLen = 0;
+        // B. 通常塩基（または欠失）フェーズ
+        if (r < baseRefSequence.length) {
+            const rChar = baseRefSequence[r];
+            finalMasterRef += rChar;
+            aggregatedMatrix[0].aligned += rChar;
 
-            for (let i = 0; i < pair.a1.length; i++) {
-                if (pair.a1[i] === "-") {
-                    currentInsertLen++;
+            individualAlignments.forEach((align, aIdx) => {
+                // 💡 リファレンスの文字(rChar)は1ミリも参照せず、
+                // クエリ自身のキャッシュ配列(deletionMap)からダイレクトに出力するため、文字のくっつきは物理的に起こり得ません
+                aggregatedMatrix[aIdx + 1].aligned += align.deletionMap[r];
+            });
+        }
+    }
+
+    // --- [STEP 4] ウィンドウ（xmin / xmax）に基づいて正確にトリミング ---
+    // 💡 修正：リファレンス上の各カラムが「どのリファレンス座標(1ベース)」に属するかをあらかじめマッピング
+    const alignedRefFull = aggregatedMatrix[0].aligned;
+    const totalAlignmentLength = alignedRefFull.length;
+
+    let clippedRef = "";
+    const clippedTracks = aggregatedMatrix.slice(1).map(m => ({ name: m.name, seq: "" }));
+    
+    let currentRefPos = 0; // 現在のリファレンス座標（1ベース）
+
+    for (let i = 0; i < totalAlignmentLength; i++) {
+        const rChar = alignedRefFull[i];
+        
+        // 通常塩基が来たらリファレンス座標を1進める
+        if (rChar !== "-") {
+            currentRefPos++;
+        }
+        
+        // 💡 挿入（-）は「次に来る通常塩基（＝currentRefPos + 1）」の手前の変異として扱う
+        // ただし、文字列の先頭（1文字目の手前の挿入）は currentRefPos が 0 なので 1 として評価
+        const effectivePos = (rChar === "-") ? Math.max(1, currentRefPos + 1) : currentRefPos;
+
+        // 指定されたウィンドウ（xmin <= 位置 <= xmax）に完全に収まっているか判定
+        if (effectivePos >= xmin && effectivePos <= xmax) {
+            clippedRef += rChar;
+            aggregatedMatrix.slice(1).forEach((mRow, mIdx) => {
+                clippedTracks[mIdx].seq += mRow.aligned[i] || "-";
+            });
+        }
+    }
+
+    // --- [STEP 4.5] 全員共通の無駄な空列ギャップを完全に除去するフィルター ---
+    let finalFilteredRef = "";
+    const finalFilteredTracks = clippedTracks.map(t => ({ name: t.name, seq: "" }));
+
+    for (let c = 0; c < clippedRef.length; c++) {
+        const refChar = clippedRef[c];
+        let isAllGap = (refChar === "-");
+        
+        if (isAllGap) {
+            for (let t = 0; t < clippedTracks.length; t++) {
+                if (clippedTracks[t].seq[c] !== "-") {
+                    isAllGap = false; 
+                    break;
+                }
+            }
+        }
+
+        if (!isAllGap) {
+            finalFilteredRef += refChar;
+            clippedTracks.forEach((track, tIdx) => {
+                finalFilteredTracks[tIdx].seq += track.seq[c];
+            });
+        }
+    }
+
+    if (finalFilteredRef.length === 0) {
+        msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px; font-weight:bold;">⚠️ 指定された範囲にデータがありません。範囲設定を見直してください。（リファレンス長: ${baseRefSequence.length}bp）</p>`;
+        return;
+    }
+
+    // --- [STEP 5] 画面の構築（🌟個別クエリの表示も同時に直すフックを設置） ---
+    let msaHtmlBuffer = `<div style="margin-top:15px; background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #cbd5e0;">`;
+    msaHtmlBuffer += `<h4 style="margin: 0 0 10px 0; color: #2b542c; font-size: 14px; font-weight:bold;">🧬 Global Batch Multiple Sequence Alignment (MSA) Matrix View</h4>`;
+    msaHtmlBuffer += `<p style="margin: 0 0 12px 0; font-size: 12px; color: #666;">Displaying fully synchronized multiple alignment window: [Ref Position ${xmin} to ${Math.min(baseRefSequence.length, xmax)}]</p>`;
+    
+    msaHtmlBuffer += `<div style="font-family: 'Courier New', Courier, monospace !important; font-size: 14px !important; line-height: 1.7 !important; white-space: pre !important; background: #1e1e1e !important; color: #ffffff !important; padding: 14px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0px !important;">`;
+
+    const paddedRefLabel = "Reference".padEnd(25, " ");
+    msaHtmlBuffer += `<span style="color: #5cb85c; font-weight:bold; font-family:inherit;">${paddedRefLabel} :</span> ${finalFilteredRef}\n`;
+
+    finalFilteredTracks.forEach(track => {
+        let isMismatched = false;
+        for (let i = 0; i < finalFilteredRef.length; i++) {
+            if (track.seq[i] !== finalFilteredRef[i]) {
+                isMismatched = true;
+                break;
+            }
+        }
+
+        const labelColor = isMismatched ? "#d9534f; font-weight:bold;" : "#94a3b8";
+        const paddedLabel = track.name.substring(0,22).padEnd(25, " ");
+        
+        msaHtmlBuffer += `<span style="color:${labelColor}; font-family:inherit;">${paddedLabel} :</span> <span style="color:#ffffff; font-family:inherit;">${track.seq}</span>\n`;
+
+        // =================================================================
+        // 🚀【ここが本命の修正】画面に出ている「個別クエリの表示」を直接直す
+        // =================================================================
+        // 💡 お使いのUI（個別のクエリを表示しているカードやコンテナ）の、
+        // アライメントの文字列（テキスト）が表示されているDOM要素を直接書き換えます。
+        // （※クラス名やID名が異なる場合は、実際のHTML構造の名前に合わせて調整してください）
+        
+        // 例: 各ファイルの個別表示エリアがファイル名に基づいたIDを持っている場合、
+        // または、特定の個別表示枠（例：#individualChartOutput）を書き換える場合：
+        
+        // 1. ファイル名に紐づいたカード内の「不揃いなテキスト表示枠」をピンポイントで捕捉
+        // track.name には "sample.ab1 (A)" などが入っているので、ファイル名部分を抽出
+        const baseFileName = track.name.split(" ")[0]; 
+        
+        // あなたのHTML構造に合わせて、個別アライメントが表示されているDOM要素（PREタグなど）を探す
+        // ここでは仮に、個別カード内でアライメントを描画している要素（例：.individual-alignment-text）を狙います
+        const individualTextEls = document.querySelectorAll(`.individual-alignment-text`);
+        
+        individualTextEls.forEach(el => {
+            // その個別表示がこのトラックのものであるか、親要素のデータ属性等で確認（もしあれば）
+            // なければ、いまMSAで計算された「完璧に3'末端が揃った文字列」でその表示をダイレクトに上書きします
+            if (el.textContent.includes(baseFileName) || individualTextEls.length === 1 || individualTextEls.length === 2) {
+                // 🔑 ここで、MSA側で計算された「リファレンス」と「揃ったクエリ」の美配列でHTMLを上書き書き換え！
+                el.innerHTML = `Reference : ${finalFilteredRef}\nQuery     : ${track.seq}`;
+                console.log(`🎯 [UI FORCE SYNC] Fixed individual display for ${track.name} using perfect MSA matrix strings.`);
+            }
+        });
+    });
+
+    msaHtmlBuffer += `</div></div>`;
+    msaOutputContainer.innerHTML = msaHtmlBuffer;
+
+    // =================================================================
+    // 🌟【個別クエリ表示・最終救済レイヤー】MSAの美配列で個別表示を強制上書き
+    // =================================================================
+    // 💡 すでにウィンドウ切り出しと、空列ギャップ除去を完璧に潜り抜けたデータをもとに、
+    // 3者共通のゼロアラインメント（すべてが-の列）を完全にドロップして一直線に揃えます。
+    
+    const individualBlocks = document.querySelectorAll('.alignment-text-block');
+    
+    individualBlocks.forEach(block => {
+        const cardTable = block.closest('table');
+        if (!cardTable) return;
+
+        const fileNameEl = cardTable.querySelector('td b');
+        if (!fileNameEl) return;
+        const currentCardFileName = fileNameEl.textContent.trim();
+
+        const matchedTracks = finalFilteredTracks.filter(t => t.name.startsWith(currentCardFileName));
+        
+        if (matchedTracks.length > 0) {
+            const trackA = matchedTracks[0];
+            const isHomozygous = (matchedTracks.length === 1);
+            const trackB = isHomozygous ? trackA : matchedTracks[1];
+
+            // ─── ■ STEP 1: 3者共通ギャップ（全員が - の列）を完全にドロップ ───
+            let cleanRef = "";
+            let cleanSeqA = "";
+            let cleanSeqB = "";
+
+            const totalLength = finalFilteredRef.length;
+
+            for (let i = 0; i < totalLength; i++) {
+                const charR = finalFilteredRef[i] || "-";
+                const charA = trackA.seq[i] || "-";
+                const charB = trackB.seq[i] || "-";
+
+                let isGlobalGapColumn = false;
+                if (isHomozygous) {
+                    isGlobalGapColumn = (charR === "-" && charA === "-");
                 } else {
-                    // 挿入セグメントが途切れたタイミングで、その直前のリファレンス座標における最大挿入長を更新
-                    if (currentInsertLen > maxInsertionsAtPos[refPos]) {
-                        maxInsertionsAtPos[refPos] = currentInsertLen;
+                    // ヘテロの時：3つすべてがハイフンの列を特定
+                    isGlobalGapColumn = (charR === "-" && charA === "-" && charB === "-");
+                }
+
+                // 全員共通のギャップでなければ、新しい配列として採用（残す）
+                if (!isGlobalGapColumn) {
+                    cleanRef += charR;
+                    cleanSeqA += charA;
+                    cleanSeqB += charB;
+                }
+            }
+
+            // ─── ■ STEP 2: 縮み終わった文字列を基準に、パイプ（|）を後から生成 ───
+            let barA = "";
+            let barB = "";
+            const maxTrackLen = cleanRef.length;
+
+            for (let i = 0; i < maxTrackLen; i++) {
+                // Allele A のマッチバー判定
+                if (cleanSeqA[i] === cleanRef[i] && cleanSeqA[i] !== '-' && cleanRef[i] !== '-') {
+                    barA += "|";
+                } else {
+                    barA += " ";
+                }
+
+                // Allele B のマッチバー判定（ヘテロの時のみ）
+                if (!isHomozygous) {
+                    if (cleanSeqB[i] === cleanRef[i] && cleanSeqB[i] !== '-' && cleanRef[i] !== '-') {
+                        barB += "|";
+                    } else {
+                        barB += " ";
                     }
-                    refPos++;
-                    currentInsertLen = 0;
-                }
-            }
-            // 配列末尾のインサートチェック
-            if (currentInsertLen > maxInsertionsAtPos[refPos]) {
-                maxInsertionsAtPos[refPos] = currentInsertLen;
-            }
-        }
-
-        // --- [STEP 4] 🌟 マスターリファレンス軸の生成と全配列の座標同期マージ ---
-        // 全クエリのインサート要求を満たす「全コンセンサス対応型マスターリファレンス」を組み立て
-        let masterAlignedRef = "";
-        
-        // 各クエリの現在のスキャン位置ポインタ
-        const queryPointers = new Int32Array(pairwiseAlignments.length);
-        const queryStrings = Array.from({ length: pairwiseAlignments.length }, () => "");
-
-        // リファレンスの各文字を1文字ずつ走査しながら、必要に応じて世界共通のインサート隙間（ギャップ）を空ける
-        for (let r = 0; r <= baseRefSequence.length; r++) {
-            // 1. まず現在のポジションの「手前」に発生した最大インサート数分のスロットを全員に均等に配布
-            const maxIns = maxInsertionsAtPos[r];
-            if (maxIns > 0) {
-                // マスターリファレンスにはインサート分だけギャップを挿入
-                masterAlignedRef += "-".repeat(maxIns);
-                
-                // 各クエリを走査し、インサートを持っている配列はその文字を、持っていない配列はギャップを埋める
-                pairwiseAlignments.forEach((align, idx) => {
-                    let ptr = queryPointers[idx];
-                    let insBuffer = "";
-                    
-                    // 当該クエリのペアワイズ配列上で、リファレンスがギャップになっている部分（＝挿入配列）を回収
-                    while (ptr < align.refAligned.length && align.refAligned[ptr] === "-") {
-                        insBuffer += align.queryAligned[ptr];
-                        ptr++;
-                    }
-                    // 最大長に満たない分は共通ギャップでパディングして縦のフェーズを完全維持
-                    queryStrings[idx] += insBuffer.padEnd(maxIns, "-");
-                    queryPointers[idx] = ptr;
-                });
-            }
-
-            // ループの終端（末尾インサート処理後）なら終了
-            if (r === baseRefSequence.length) break;
-
-            // 2. 本体の文字をマッピング
-            masterAlignedRef += baseRefSequence[r];
-            pairwiseAlignments.forEach((align, idx) => {
-                let ptr = queryPointers[idx];
-                // ペアワイズ上で次のリファレンス文字と一致する位置までポインタを進める
-                while (ptr < align.refAligned.length && align.refAligned[ptr] === "-") {
-                    ptr++; // 異常系のスキップセーフティ
-                }
-                if (ptr < align.refAligned.length) {
-                    queryStrings[idx] += align.queryAligned[ptr];
-                    queryPointers[idx] = ptr + 1;
-                } else {
-                    queryStrings[idx] += "-";
-                }
-            });
-        }
-
-        // --- ウィンドウ（xmin / xmax）基準の正確なトリミング処理 ---
-        let clippedRef = "";
-        const clippedTracks = pairwiseAlignments.map(m => ({ name: m.name, seq: "" }));
-        let refCoordCounter = 0;
-
-        for (let i = 0; i < masterAlignedRef.length; i++) {
-            const rChar = masterAlignedRef[i];
-            if (rChar !== "-") refCoordCounter++; // 純粋なリファレンス座標のみカウント
-
-            // 指定ウィンドウに入っているか判定（インサート含む）
-            if (refCoordCounter >= xmin && refCoordCounter <= xmax) {
-                clippedRef += rChar;
-                queryStrings.forEach((str, idx) => {
-                    clippedTracks[idx].seq += str[i] || "-";
-                });
-            }
-        }
-
-        // セーフティチェック
-        if (clippedRef.length === 0) {
-            msaOutputContainer.innerHTML = `<p style="color:#d9534f; padding: 20px;">⚠️ 指定範囲 [xmin: ${xmin}, xmax: ${xmax}] にデータがありません。範囲設定を見直してください。</p>`;
-            return;
-        }
-    
-        // --- [STEP 5] 画面表示HTML構築 ---
-        let msaHtmlBuffer = `<div style="margin-top:15px; background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #cbd5e0;">`;
-        msaHtmlBuffer += `<h4 style="margin: 0 0 10px 0; color: #2b542c; font-size: 14px; font-weight:bold;">🧬 Global Batch Multiple Sequence Alignment (MSA) Matrix View</h4>`;
-        msaHtmlBuffer += `<p style="margin: 0 0 12px 0; font-size: 12px; color: #666;">Displaying synchronized multiple alignment window: [Ref Position ${xmin} to ${Math.min(baseRefSequence.length, xmax)}]</p>`;
-        
-        // Tabular-nums と monospace 強制により、文字幅を完全にビット揃え
-        msaHtmlBuffer += `<div style="font-family: 'Courier New', Courier, monospace !important; font-size: 14px !important; line-height: 1.7 !important; white-space: pre !important; background: #1e1e1e !important; color: #ffffff !important; padding: 14px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0px !important;">`;
-
-        // 1行目: リファレンス配列の出力
-        const paddedRefLabel = "Reference".padEnd(25, " ");
-        msaHtmlBuffer += `<span style="color: #5cb85c; font-weight:bold; font-family:inherit;">${paddedRefLabel} :</span> ${clippedRef}\n`;
-
-        // 2行目以降: 各サンプルのアレル配列の一覧出力
-        clippedTracks.forEach(track => {
-            // リファレンス配列と一文字ずつ比較し、不一致（変異またはギャップ）があるかチェック
-            let isMismatched = false;
-            for (let i = 0; i < clippedRef.length; i++) {
-                if (track.seq[i] !== clippedRef[i]) {
-                    isMismatched = true;
-                    break; // 1箇所でも違えばループを抜ける
                 }
             }
 
-            // 【新機能】リファレンスと不一致がある配列は目立つ赤（#d9534f）、完全一致はシンプルなグレー（#94a3b8）
-            const labelColor = isMismatched ? "#d9534f; font-weight:bold;" : "#94a3b8";
+            // ─── ■ STEP 3: 1つのアライメント窓としてテキストを組み立て ───
+            let updatedTextHtml = `Reference:    ${cleanRef}\n`;
 
-            const paddedLabel = track.name.substring(0,22).padEnd(25, " ");
-            msaHtmlBuffer += `<span style="color:${labelColor}; font-family:inherit;">${paddedLabel} :</span> <span style="color:#ffffff; font-family:inherit;">${track.seq}</span>\n`;
-        });
-
-        msaHtmlBuffer += `</div></div>`;
-        msaOutputContainer.innerHTML = msaHtmlBuffer;
-    
-        // --- [STEP 6] エクスポートボタンパネル ---
-        const btnWrapper = document.createElement("div");
-        btnWrapper.style.marginTop = "15px";
-        btnWrapper.style.display = "flex";
-        btnWrapper.style.gap = "10px";
-    
-        // ① Multi-FASTA
-        const fastaBtn = document.createElement("button");
-        fastaBtn.style.padding = "6px 12px";
-        fastaBtn.style.backgroundColor = "#34495e";
-        fastaBtn.style.color = "#fff";
-        fastaBtn.style.border = "none";
-        fastaBtn.style.borderRadius = "4px";
-        fastaBtn.style.cursor = "pointer";
-        fastaBtn.innerText = "💾 Download Multi-FASTA (.fa)";
-        fastaBtn.addEventListener('click', () => {
-            let fastaContent = `>Reference_Window_${xmin}_${xmax}\n${clippedRef.replace(/-/g, '')}\n`;
-            clippedTracks.forEach(track => {
-                const cleanName = track.name.replace(/\s+/g, '_');
-                const cleanSeq = track.seq.replace(/-/g, '');
-                fastaContent += `>${cleanName}_Window_${xmin}_${xmax}\n${cleanSeq}\n`;
-            });
-            const blob = new Blob([fastaContent], { type: "text/plain;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `phased_alleles_window_${xmin}_${xmax}.fa`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        });
-    
-        // ② Clustal
-        const clustalBtn = document.createElement("button");
-        clustalBtn.style.padding = "6px 12px";
-        clustalBtn.style.backgroundColor = "#2980b9";
-        clustalBtn.style.color = "#fff";
-        clustalBtn.style.border = "none";
-        clustalBtn.style.borderRadius = "4px";
-        clustalBtn.style.cursor = "pointer";
-        clustalBtn.innerText = "📋 Download Alignment Text (.txt)";
-        clustalBtn.addEventListener('click', () => {
-            let clustalContent = "CLUSTAL W multiple sequence alignment (Sanger Progressive MSA View)\n\n";
-            clustalContent += `${"Reference".padEnd(30, " ")} ${clippedRef}\n`;
-            clippedTracks.forEach(t => {
-                const cleanName = t.name.replace(/\s+/g, '_').substring(0, 28);
-                clustalContent += `${cleanName.padEnd(30, " ")} ${t.seq}\n`;
-            });
+            if (isHomozygous) {
+                updatedTextHtml += `              ${barA}\n`;
+                updatedTextHtml += `Homozygous:   ${cleanSeqA}\n`;
+            } else {
+                updatedTextHtml += `              ${barA}\n`;
+                updatedTextHtml += `Allele A:     ${cleanSeqA}\n`;
+                updatedTextHtml += `              ${barB}\n`;
+                updatedTextHtml += `Allele B:     ${cleanSeqB}\n`;
+            }
             
-            const blob = new Blob([clustalContent], { type: "text/plain;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `multiple_sequence_alignment_${xmin}_${xmax}.txt`;
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        });
-    
-        // --- [STEP 7] Render Component Assemblies to Interface ---
-        btnWrapper.appendChild(fastaBtn);
-        btnWrapper.appendChild(clustalBtn);
-        msaOutputContainer.appendChild(btnWrapper);
-    
-        const statusEl = document.getElementById('msaStatus');
-        if (statusEl) {
-            statusEl.innerText = `Global Clustal-grade MSA generated. Export tools ready.`;
+            // 🚀 ドロップ完了済みの1本化アライメントで上書き！
+            block.textContent = updatedTextHtml;
+            console.log(`🎯 [UI RE-RENDER SUCCESS] Synchronized individual card text block flat for: ${currentCardFileName}`);
         }
     });
 
+// 🔍 原因特定のためのデバッグログ（ブラウザのコンソールで確認してください）
+    console.log("====== MSA DEBUG ======");
+    console.log("元のリファレンス長:", baseRefSequence.length);
+    console.log("計算されたアライメントの全長:", totalAlignmentLength);
+    console.log("トリミング後のリファレンス長:", clippedRef.length);
+    if(clippedTracks[0]) {
+       // console.log("1番目のサンプルのアライメント後長:", msaMatrix[1].aligned.length);
+        console.log("1番目のサンプルのトリミング後長:", clippedTracks[0].seq.length);
+    }
+    console.log("=======================");
+    
+    // --- [STEP 6] エクスポートボタンパネルの生成 ---
+    const btnWrapper = document.createElement("div");
+    btnWrapper.style.marginTop = "15px";
+    btnWrapper.style.display = "flex";
+    btnWrapper.style.gap = "10px";
+
+    // ① Multi-FASTA ダウンロードボタン
+    const fastaBtn = document.createElement("button");
+    fastaBtn.style.padding = "6px 12px"; fastaBtn.style.backgroundColor = "#34495e"; fastaBtn.style.color = "#fff"; fastaBtn.style.border = "none"; fastaBtn.style.borderRadius = "4px"; fastaBtn.style.cursor = "pointer";
+    fastaBtn.innerText = "💾 Download Multi-FASTA (.fa)";
+    fastaBtn.addEventListener('click', () => {
+        let fastaContent = `>Reference_Window_${xmin}_${xmax}\n${clippedRef.replace(/-/g, '')}\n`;
+        clippedTracks.forEach(track => {
+            fastaContent += `>${track.name.replace(/\s+/g, '_')}_Window_${xmin}_${xmax}\n${track.seq.replace(/-/g, '')}\n`;
+        });
+        const blob = new Blob([fastaContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a"); link.href = url; link.download = `phased_alleles_window_${xmin}_${xmax}.fa`;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+    });
+
+    // ② Clustalテキスト ダウンロードボタン
+    const clustalBtn = document.createElement("button");
+    clustalBtn.style.padding = "6px 12px"; clustalBtn.style.backgroundColor = "#2980b9"; clustalBtn.style.color = "#fff"; clustalBtn.style.border = "none"; clustalBtn.style.borderRadius = "4px"; clustalBtn.style.cursor = "pointer";
+    clustalBtn.innerText = "📋 Download Alignment Text (.txt)";
+    clustalBtn.addEventListener('click', () => {
+        let clustalContent = "CLUSTAL W multiple sequence alignment (Sanger Progressive MSA View)\n\n";
+        clustalContent += `${"Reference".padEnd(30, " ")} ${clippedRef}\n`;
+        clippedTracks.forEach(t => { clustalContent += `${t.name.replace(/\s+/g, '_').substring(0, 28).padEnd(30, " ")} ${t.seq}\n`; });
+        const blob = new Blob([clustalContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a"); link.href = url; link.download = `multiple_sequence_alignment_${xmin}_${xmax}.txt`;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+    });
+
+    btnWrapper.appendChild(fastaBtn); 
+    btnWrapper.appendChild(clustalBtn);
+    msaOutputContainer.appendChild(btnWrapper);
+
+    const statusEl = document.getElementById('msaStatus');
+    if (statusEl) {
+        statusEl.innerText = `Global Clustal-grade MSA generated. Export tools ready.`;
+    }
+});
 
 
     
@@ -880,24 +969,23 @@
         window.globalPhasedSequencesPool = [];
     }
 
-    // 【ステップ３】解析実行ボタン（runBtn）のクリックイベントに割り込むフック
+    // 【ステップ３】解析実行ボタン（runBtn）のクリックイベントに割り込むフックを設置
     document.getElementById('runBtn').addEventListener('click', async (e) => {
         const isPhaseModeChecked = document.getElementById("enablePhaseMode")?.checked || false;
         
         if (!isPhaseModeChecked) {
-            return; // チェックOFFなら既存の通常ロジックにおまかせ
+            return; 
         }
     
-        e.stopImmediatePropagation(); // 既存ロジックをストップ
+        e.stopImmediatePropagation(); 
         
         const refTextArea = document.getElementById("refTextArea");
         const refSeqClean = refTextArea.value.replace(/>.*/g, '').replace(/[^A-Za-z]/g, '').toUpperCase();
         if (!refSeqClean) {
-            alert('Please provide a sequence in "① Reference Sequence(s)"!');
+            alert("Please input a sequence in ① Reference Sequence(s)");
             return;
         }
-
-        // 🌟 新設したアレル配列プールと、既存のミスマッチ用キャッシュを両方ともクリア
+    
         window.globalPhasedSequencesPool = [];
         if (typeof discoveredMismatchesCache !== 'undefined') {
             discoveredMismatchesCache = [];
@@ -908,25 +996,26 @@
     
         const checkboxes = document.getElementById('queryChecklist').querySelectorAll('input[type="checkbox"]');
         const selectedFilesToProcess = [];
-
+    
         for (let cb of checkboxes) {
             if (cb.checked) {
                 const idx = parseInt(cb.getAttribute('data-index'));
                 const item = rawQueriesList[idx];
                 const cachedBuffer = ab1RawFileCache[item.file];
-
-                if (cachedBuffer) { selectedFilesToProcess.push({ name: item.file, arrayBuffer: async () => cachedBuffer }); }
+                if (cachedBuffer) { 
+                    selectedFilesToProcess.push({ name: item.file, arrayBuffer: async () => cachedBuffer }); 
+                }
             }
         }
-
+    
         if (selectedFilesToProcess.length === 0) {
-            alert("Query not found!");
+            alert("Please select a query to analyze.");
             document.getElementById('status').innerText = 'Ready.';
             return;
         }
-
+    
         try {
-            console.log(`[Phase Mode] Initiating batch parsing for ${selectedFilesToProcess.length} traces.`);
+            console.log(`[Phase Mode] Initiating core execution for ${selectedFilesToProcess.length} traces.`);
             const batchOutputs = await runSangerBatchPhaseAnalysis(selectedFilesToProcess, refSeqClean, offsetSetting);
             
             const resultsContainer = document.getElementById("reportView");
@@ -934,39 +1023,73 @@
             
             const targetRefSelect = document.getElementById('targetRefSelect');
             const activeRefName = targetRefSelect ? targetRefSelect.value : "Reference";
-
+    
             for (let res of batchOutputs) {
                 if (res.status === "Success") {
-                    // 個別アライメント（Reference, Allele A, Allele B）の表示
                     appendDeconvolutionCardToUi(res.fileName, res.strandDetected, res.data, resultsContainer);
-
+    
                     const isHomozygous = (res.data.alleleA === res.data.alleleB);
-
-                    // 🌟 【修正の核心】バックエンドが生成した「ギャップ調整済みの本物の配列」をそのままプールへ100%の精度で直撃格納！
-                    // これにより、25bpの挿入コピーや複雑な欠失ギャップのデータが完璧に引き渡されます。
+                    const isReverseStrand = (res.strandDetected === "REVERSE");
+                    const strandLabel = isReverseStrand ? " (REV)" : "";
+    
+                    const cleanAlleleA = res.data.alleleA;
+                    const cleanAlleleB = res.data.alleleB;
+    
                     if (isHomozygous) {
-                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (WT)`, seq: res.data.alleleA });
+                        window.globalPhasedSequencesPool.push({ 
+                            name: `${res.fileName}${strandLabel || " (WT)"}`, 
+                            seq: cleanAlleleA 
+                        });
                     } else {
-                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (A)`, seq: res.data.alleleA });
-                        window.globalPhasedSequencesPool.push({ name: `${res.fileName} (B)`, seq: res.data.alleleB });
+                        window.globalPhasedSequencesPool.push({ 
+                            name: `${res.fileName}${strandLabel ? " (REV-A)" : " (A)"}`, 
+                            seq: cleanAlleleA 
+                        });
+                        window.globalPhasedSequencesPool.push({ 
+                            name: `${res.fileName}${strandLabel ? " (REV-B)" : " (B)"}`, 
+                            seq: cleanAlleleB 
+                        });
+                    }
+    
+                    // 🌟【統一ビジュアルコア】クエリ一個の時もMSA側のきれいな描画エンジンを完全利用する
+                    if (res.data.indelStartRefPos !== "None") {
+                        
+                        const allelesToProcess = [
+                            { seq: cleanAlleleA, label: isHomozygous ? "" : (isReverseStrand ? " (REV-A)" : " (A)") },
+                            { seq: isHomozygous ? null : cleanAlleleB, label: isReverseStrand ? " (REV-B)" : " (B)" }
+                        ];
+                    
+                        allelesToProcess.forEach(alleleItem => {
+                            if (!alleleItem.seq) return; 
+                    
+                            // 💡 1. Individual cache collection STILL uses the original tight SW for downstream data metrics
+                            const sw = smithWaterman(alleleItem.seq, refSeqClean);
+                            const alignedQ = sw.queryAligned;
+                            const alignedR = sw.refAligned;
+                            let currentRPos = sw.rStart + 1; 
+                    
+                            for (let i = 0; i < alignedR.length; i++) {
+                                const charQ = alignedQ[i];
+                                const charR = alignedR[i];
+                    
+                                if (charQ !== charR) {
+                                    discoveredMismatchesCache.push({
+                                        query_file: res.fileName, 
+                                        query_name: `${res.fileName}${alleleItem.label}`, 
+                                        matched_ref: activeRefName,
+                                        subject_pos: charR === '-' ? "GAP" : currentRPos, 
+                                        ref_base: charR, 
+                                        mut_base: charQ, 
+                                        query_ref_start: res.data.indelStartRefPos, 
+                                        query_ref_end: res.data.indelEndRefPos
+                                    });
+                                }
+                                if (charR !== '-') currentRPos++;
+                            }
+                        });
                     }
 
-                    // 既存の③ダッシュボード連動用のキャッシュ処理も念のため並走（後方互換性維持）
-                    const totalLen = res.data.alleleA.length;
-                    let currentRPos = 1;
-                    for (let i = 0; i < totalLen; i++) {
-                        const charB = res.data.alleleB[i];
-                        const charR = res.data.referenceSegment[i];
-                        if (!isHomozygous && charB !== charR) {
-                            discoveredMismatchesCache.push({
-                                query_file: res.fileName, query_name: res.fileName, matched_ref: activeRefName,
-                                subject_pos: charR === '-' ? "GAP" : currentRPos, ref_base: charR, mut_base: charB,
-                                query_ref_start: res.data.indelStartRefPos, query_ref_end: res.data.indelEndRefPos
-                            });
-                        }
-                        if (charR !== '-') currentRPos++;
-                    }
-
+    
                 } else {
                     resultsContainer.insertAdjacentHTML('beforeend', `
                         <table style="width:100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #d9534f; background: #fdf7f7;">
@@ -979,85 +1102,147 @@
             
             document.getElementById('status').innerText = 'Analysis complete via Wave Phase Mode.';
             
-            // パネルの表示
             const aggregatorPanel = document.getElementById('aggregatorPanel');
             if (aggregatorPanel) aggregatorPanel.style.display = 'block';
             const msaPanel = document.getElementById('msaPanel');
             if (msaPanel) msaPanel.style.display = 'block';
-
+    
+            // 下流の MSA生成ボタン を自動で安全にトリガー
+            const msaBtnEl = document.getElementById('msaBtn');
+            if (msaBtnEl) {
+                msaBtnEl.click(); 
+            }
+    
         } catch (globalErr) {
             alert(`Global batch calculation failed: ${globalErr.message}`);
             document.getElementById('status').innerText = 'Error handling batch sequence arrays.';
         }
     }, { capture: true });
 
-    /**
-     * 🎨 UI DOM Renderer Interface Component（完全同期型・マルチプル対応）
-     */
+
+
+    // 💡 Update the arguments to accept pristine aligned strings directly
     function appendDeconvolutionCardToUi(fileName, orientationLabel, data, container) {
-        const refSeqAligned = data.referenceSegment;
-        const alleleAAligned = data.alleleA;
-        const alleleBAligned = data.alleleB;
-        const maxTrackLen = refSeqAligned.length;
+        // 💡 FORCE SANITIZATION: Define clean queries right at the top
+        const cleanQueryA = (data.alleleA || "").toUpperCase().replace(/[^A-Z-]/g, '');
+        const cleanQueryB = data.alleleB ? data.alleleB.toUpperCase().replace(/[^A-Z-]/g, '') : "";
     
-        // Check if both channels resolve as structurally identical tracks
-        const isHomozygousTrack = (alleleAAligned === alleleBAligned);
+        const rawRef = (data.referenceSegment || "").toUpperCase();
+        const rawA   = cleanQueryA;
+        const rawB   = cleanQueryB;
     
+        const isHomozygousTrack = (rawA === rawB || !data.alleleB);
+    
+        // 🌟 修正ポイント：A用とB用で、別々にアラインメント文字列を構築する
+        let refSeqAlignedA = "";
+        let alleleAAligned = "";
+    
+        let refSeqAlignedB = "";
+        let alleleBAligned = "";
+    
+        const totalLength = rawRef.length;
+    
+        // 🧬 【圧縮エンジン】ペアごとに独立してスキャンし、共通ギャップ（-）をドロップする
+        for (let i = 0; i < totalLength; i++) {
+            const charR = rawRef[i] || "-";
+            const charA = rawA[i] || "-";
+            const charB = rawB[i] || "-";
+    
+            // 1. Reference と Allele A の共通ギャップ削除
+            if (!(charR === "-" && charA === "-")) {
+                refSeqAlignedA += charR;
+                alleleAAligned += charA;
+            }
+    
+            // 2. Reference と Allele B の共通ギャップ削除 (ヘテロの時のみ)
+            if (!isHomozygousTrack) {
+                if (!(charR === "-" && charB === "-")) {
+                    refSeqAlignedB += charR;
+                    alleleBAligned += charB;
+                }
+            }
+        }
+    
+        // ─── ■ Allele A のマッチバーとミスマッチ検出 ───
         let alignmentBarA = "";
-        let alignmentBarB = "";
         let mismatchesA = [];
-        let mismatchesB = [];
+        let currentRPosA = 1, currentAPos = 1;
     
-        let currentRPos = 1, currentAPos = 1, currentBPos = 1;
-    
-        for (let i = 0; i < maxTrackLen; i++) {
-            const charR = refSeqAligned[i];
+        for (let i = 0; i < refSeqAlignedA.length; i++) {
+            const charR = refSeqAlignedA[i];
             const charA = alleleAAligned[i];
-            const charB = alleleBAligned[i];
     
             if (charA === charR && charA !== '-' && charR !== '-') {
                 alignmentBarA += "|";
             } else {
                 alignmentBarA += " ";
-                if (charA !== charR) mismatchesA.push({ posA: charA === '-' ? "GAP" : currentAPos, posR: charR === '-' ? "GAP" : currentRPos, baseA: charA, baseR: charR });
+                if (charA !== charR) {
+                    mismatchesA.push({ 
+                        posA: charA === '-' ? "GAP" : currentAPos, 
+                        posR: charR === '-' ? "GAP" : currentRPosA, 
+                        baseA: charA, 
+                        baseR: charR 
+                    });
+                }
             }
+            if (charR !== '-') currentRPosA++;
+            if (charA !== '-') currentAPos++;
+        }
     
-            if (!isHomozygousTrack) {
+        // ─── ■ Allele B のマッチバーとミスマッチ検出 ───
+        let alignmentBarB = "";
+        let mismatchesB = [];
+        let currentRPosB = 1, currentBPos = 1;
+    
+        if (!isHomozygousTrack) {
+            for (let i = 0; i < refSeqAlignedB.length; i++) {
+                const charR = refSeqAlignedB[i];
+                const charB = alleleBAligned[i];
+    
                 if (charB === charR && charB !== '-' && charR !== '-') {
                     alignmentBarB += "|";
                 } else {
                     alignmentBarB += " ";
-                    if (charB !== charR) mismatchesB.push({ posB: charB === '-' ? "GAP" : currentBPos, posR: charR === '-' ? "GAP" : currentRPos, baseB: charB, baseR: charR });
+                    if (charB !== charR) {
+                        mismatchesB.push({ 
+                            posB: charB === '-' ? "GAP" : currentBPos, 
+                            posR: charR === '-' ? "GAP" : currentRPosB, 
+                            baseB: charB, 
+                            baseR: charR 
+                        });
+                    }
                 }
+                if (charR !== '-') currentRPosB++;
+                if (charB !== '-') currentBPos++;
             }
-    
-            if (charR !== '-') currentRPos++;
-            if (charA !== '-') currentAPos++;
-            if (charB !== '-') currentBPos++;
         }
     
+        // ─── ■ Build the HTML Table ───
         let htmlBuffer = `<table style="width:100%; border-collapse: collapse; margin-bottom: 20px; background: #ffffff; color: #111111;">`;
         
         htmlBuffer += `<tr><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Query (Wave) Name</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;" colspan="2">Analysis Mode</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Strand</th></tr>`;
         htmlBuffer += `<tr><td style="padding:8px; border:1px solid #ddd; color:#111;"><b>${fileName}</b></td><td style="padding:8px; border:1px solid #ddd; color: #2b542c; font-weight:bold;" colspan="2">CRISPR Phase Deconvolution</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${orientationLabel}</td></tr>`;
         
         htmlBuffer += `<tr><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Mutation Detect Position</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Allele A Length</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Allele B Length</th><th style="background:#f2f2f2; text-align:left; padding:8px; border:1px solid #ddd; color:#111;">Reference Length</th></tr>`;
-        htmlBuffer += `<tr><td style="padding:8px; border:1px solid #ddd; color: #d9534f; font-weight:bold;">Ref Pos: ${data.indelStartRefPos}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${data.alleleA.replace(/-/g,'').length} bp</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${isHomozygousTrack ? "N/A" : data.alleleB.replace(/-/g,'').length + " bp"}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${data.referenceSegment.replace(/-/g,'').length} bp</td></tr>`;
+        
+        htmlBuffer += `<tr><td style="padding:8px; border:1px solid #ddd; color: #d9534f; font-weight:bold;">Ref Pos: ${data.indelStartRefPos ?? 'N/A'}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${cleanQueryA.replace(/-/g,'').length} bp</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${isHomozygousTrack ? "N/A" : cleanQueryB.replace(/-/g,'').length + " bp"}</td><td style="padding:8px; border:1px solid #ddd; color:#111;">${rawRef.replace(/-/g,'').length} bp</td></tr>`;
         
         htmlBuffer += `<tr><td colspan='4' style="padding:12px; border:1px solid #ddd; background: #ffffff;">`;
         htmlBuffer += `<p class='label' style="margin: 0 0 8px 0; font-size:12px; color:#333; font-weight:bold;">🌟 Triple-Strand Phase Alignment Window</p>`;
         
         htmlBuffer += `<div class='alignment-text-block' style="font-family: 'Courier New', Courier, monospace; white-space: pre; background: #1e1e1e; color: #ffffff !important; padding: 14px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-size: 14px; line-height: 1.6; font-weight: 500; letter-spacing: 0.5px;">`;
         
-        // 🌟 Suppress output lines dynamically if tracks match identically
+        // 💡 画面表示時も、A用のアラインメントとB用のアラインメントを分けて表示する
         if (isHomozygousTrack) {
-            htmlBuffer += `Reference:    ${refSeqAligned}\n`;
+            htmlBuffer += `Reference:    ${refSeqAlignedA}\n`;
             htmlBuffer += `              ${alignmentBarA}\n`;
             htmlBuffer += `Homozygous:   ${alleleAAligned}\n`;
         } else {
-            htmlBuffer += `Reference:    ${refSeqAligned}\n`;
+            htmlBuffer += `Reference(A): ${refSeqAlignedA}\n`;
             htmlBuffer += `              ${alignmentBarA}\n`;
             htmlBuffer += `Allele A:     ${alleleAAligned}\n`;
+            htmlBuffer += `-------------------------------------------\n`; // 境界線
+            htmlBuffer += `Reference(B): ${refSeqAlignedB}\n`;
             htmlBuffer += `              ${alignmentBarB}\n`;
             htmlBuffer += `Allele B:     ${alleleBAligned}\n`;
         }
@@ -1091,7 +1276,6 @@
         htmlBuffer += `</td></tr></table><br><br>`;
         container.insertAdjacentHTML('beforeend', htmlBuffer);
     }
-
 
     // Analysis trigger using the live updated textbox inputs
     document.getElementById('runBtn').addEventListener('click', () => {
@@ -1774,6 +1958,132 @@
         };
     }
 
+    function smithWatermanForMSA(query, ref) {
+        // 🧬 ヘテロインデルの隙間をブロックし、3'相同領域を吸い寄せる最強の配点
+        const MATCH = 2;
+        const MISMATCH = -4;     
+        const GAP_OPEN = -6;     
+        const GAP_EXTEND = -1;   
+    
+        const qLen = query.length, rLen = ref.length;
+        if (qLen === 0 || rLen === 0) {
+            return { queryAligned: "-".repeat(rLen), refAligned: "-".repeat(qLen), rStart: 0 };
+        }
+    
+        // アフィン・ギャップ配点用の3マトリックス
+        const M = Array.from({ length: qLen + 1 }, () => new Int32Array(rLen + 1));
+        const X = Array.from({ length: qLen + 1 }, () => new Int32Array(rLen + 1));
+        const Y = Array.from({ length: qLen + 1 }, () => new Int32Array(rLen + 1));
+    
+        // トレースバック用 (1:M, 2:X, 3:Y, 0:終了)
+        const traceM = Array.from({ length: qLen + 1 }, () => new Uint8Array(rLen + 1));
+        const traceX = Array.from({ length: qLen + 1 }, () => new Uint8Array(rLen + 1));
+        const traceY = Array.from({ length: qLen + 1 }, () => new Uint8Array(rLen + 1));
+    
+        let maxScore = -Infinity;
+        let maxQ = 0, maxR = 0;
+        let maxMatrix = 1;
+    
+        // DP行列の計算
+        for (let i = 1; i <= qLen; i++) {
+            const c1 = query.charAt(i - 1);
+            for (let j = 1; j <= rLen; j++) {
+                const c2 = ref.charAt(j - 1);
+                const score_match = (c1 === c2) ? MATCH : MISMATCH;
+    
+                // 1. Mマトリックス
+                const fromM = M[i - 1][j - 1] + score_match;
+                const fromX = X[i - 1][j - 1] + score_match;
+                const fromY = Y[i - 1][j - 1] + score_match;
+                const scoreM = Math.max(0, fromM, fromX, fromY);
+                M[i][j] = scoreM;
+    
+                if (scoreM > 0) {
+                    if (scoreM === fromM) traceM[i][j] = 1;
+                    else if (scoreM === fromX) traceM[i][j] = 2;
+                    else traceM[i][j] = 3;
+                } else {
+                    traceM[i][j] = 0;
+                }
+    
+                // 2. Xマトリックス（クエリに文字、リファレンスにギャップ＝挿入）
+                const openX = M[i - 1][j] + GAP_OPEN;
+                const extendX = X[i - 1][j] + GAP_EXTEND;
+                X[i][j] = Math.max(0, openX, extendX);
+                traceX[i][j] = (openX >= extendX) ? 1 : 2;
+    
+                // 3. Yマトリックス（クエリにギャップ、リファレンスに文字＝欠失）
+                const openY = M[i][j - 1] + GAP_OPEN;
+                const extendY = Y[i][j - 1] + GAP_EXTEND;
+                Y[i][j] = Math.max(0, openY, extendY);
+                traceY[i][j] = (openY >= extendY) ? 1 : 3;
+    
+                if (M[i][j] > maxScore) { maxScore = M[i][j]; maxQ = i; maxR = j; maxMatrix = 1; }
+                if (X[i][j] > maxScore) { maxScore = X[i][j]; maxQ = i; maxR = j; maxMatrix = 2; }
+                if (Y[i][j] > maxScore) { maxScore = Y[i][j]; maxQ = i; maxR = j; maxMatrix = 3; }
+            }
+        }
+    
+        let i = maxQ, j = maxR;
+        let currentMatrix = maxMatrix;
+        let alignedQ = "", alignedR = "";
+    
+        // 【3'末端パディング】
+        if (i < qLen) {
+            alignedQ = query.substring(i) + alignedQ;
+            alignedR = "-".repeat(qLen - i) + alignedR;
+        }
+        if (j < rLen) {
+            alignedQ = "-".repeat(rLen - j) + alignedQ;
+            alignedR = ref.substring(j) + alignedR;
+        }
+    
+        // バックトラック
+        while (i > 0 && j > 0) {
+            if (currentMatrix === 1) {
+                if (M[i][j] === 0 || traceM[i][j] === 0) break;
+                const nextMatrix = traceM[i][j];
+                alignedQ = query.charAt(i - 1) + alignedQ;
+                alignedR = ref.charAt(j - 1) + alignedR;
+                i--; j--;
+                currentMatrix = nextMatrix;
+            } else if (currentMatrix === 2) {
+                if (X[i][j] === 0) break;
+                const nextMatrix = traceX[i][j];
+                alignedQ = query.charAt(i - 1) + alignedQ;
+                alignedR = "-" + alignedR;
+                i--;
+                currentMatrix = nextMatrix;
+            } else if (currentMatrix === 3) {
+                if (Y[i][j] === 0) break;
+                const nextMatrix = traceY[i][j];
+                alignedQ = "-" + alignedQ;
+                alignedR = ref.charAt(j - 1) + alignedR;
+                j--;
+                currentMatrix = nextMatrix;
+            }
+        }
+    
+        // 【5'先頭パディング】
+        let rStartFinal = j; // 1ベースの開始位置を記録
+        if (i > 0) {
+            alignedQ = query.substring(0, i) + alignedQ;
+            alignedR = "-".repeat(i) + alignedR;
+        }
+        if (j > 0) {
+            alignedQ = "-".repeat(j) + alignedQ;
+            alignedR = ref.substring(0, j) + alignedR;
+        }
+    
+        // 🌟 あなたのオリジナルSWと100%同じプロパティ名で返却！
+        return { 
+            queryAligned: alignedQ, 
+            refAligned: alignedR, 
+            rStart: rStartFinal 
+        };
+    }
+
+
     function reverseComplement(seq) {
         const pairs = {'A':'T', 'T':'A', 'G':'C', 'C':'G', 'N':'N', '-':'-', 'a':'t', 't':'a', 'g':'c', 'c':'g', 'n':'n'};
         return seq.split('').reverse().map(b => pairs[b] || b).join('');
@@ -1963,7 +2273,7 @@ function parseAb1TracksFromBuffer(arrayBuffer) {
     const base12 = fwoString.charAt(3) || 'T';
 
     const queryPeaks = [];
-    const noiseThresholdRatio = 0.20;
+    const noiseThresholdRatio = 0.12;
 
     for (let i = 0; i < lenPLOC; i++) {
         const peakIndex = view.getUint16(offsetPLOC + (i * 2), false); 
@@ -2109,7 +2419,7 @@ async function runSangerBatchPhaseAnalysis(fileList, refSeq, baseOffset = 20) {
 function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1FileReverseStrand) {
     const view = new DataView(arrayBuffer);
     
-    // Parse baseline directories
+    // 1. Trace Directory Structure Parsing (ABIフォーマット公式ヘッダー解析)
     const dirNumElements = view.getUint32(18, false); 
     const dirDataOffset = view.getUint32(26, false);  
     let lenPLOC = 0, offsetPLOC = -1, fwoString = "ACGT"; 
@@ -2121,14 +2431,22 @@ function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1File
         const tagValue = view.getUint32(entryOffset, false);
         const tagNum = view.getInt32(entryOffset + 4, false);
         const dataSize = view.getUint32(entryOffset + 16, false);
+        
+        // 4バイト以下のデータはエントリ内に直接格納されているため、条件分岐
         const realOffset = (dataSize <= 4) ? (entryOffset + 20) : view.getUint32(entryOffset + 20, false);
 
-        if (tagValue === 0x504C4F43) { 
+        if (tagValue === 0x504C4F43) { // "PLOC" タグ
             offsetPLOC = realOffset; 
-            lenPLOC = view.getUint32(entryOffset + 16, false) / 2; 
-        } else if (tagValue === 0x46574F5F) {
-            fwoString = String.fromCharCode(view.getUint8(entryOffset + 20), view.getUint8(entryOffset + 21), view.getUint8(entryOffset + 22), view.getUint8(entryOffset + 23)).toUpperCase();
-        } else if (tagValue === 0x44415441) { 
+            lenPLOC = dataSize / 2; // 16bit配列なので、バイトサイズを2で割って要素数を算出
+        } else if (tagValue === 0x46574F5F) { // "FWO_" タグ
+            // 💡【修正】直値格納（entryOffset+20）ではなく、上記で計算した正しい realOffset から4文字を抽出
+            fwoString = String.fromCharCode(
+                view.getUint8(realOffset), 
+                view.getUint8(realOffset + 1), 
+                view.getUint8(realOffset + 2), 
+                view.getUint8(realOffset + 3)
+            ).toUpperCase();
+        } else if (tagValue === 0x44415441) { // "DATA" タグ
             if (tagNum >= 9 && tagNum <= 12) dataOffsets[tagNum] = realOffset; 
         }
     }
@@ -2137,19 +2455,23 @@ function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1File
         throw new Error("Failed to extract required DATA or PLOC tags necessary for chromatogram trace analysis.");
     }
 
+    // チャネル順序（FWO_）をベースに4色波形の塩基マップを動的に確定
     const baseMap = { 
         0: fwoString.charAt(0) || 'A', 
         1: fwoString.charAt(1) || 'C', 
         2: fwoString.charAt(2) || 'G', 
         3: fwoString.charAt(3) || 'T' 
     };
-    const noiseThresholdRatio = 0.20; 
+    
+    // 二次ピーク（ヘテロ波形）を拾い上げるための、ノイズと判別する閾値比率（15%）
+    const noiseThresholdRatio = 0.15; 
 
     let queryPeakPool = [];
     for (let i = 0; i < lenPLOC; i++) {
+        // PLOCエントリから、i番目の塩基の「波形サンプリングポイント位置（インデックス）」を取得
         const peakIndex = view.getUint16(offsetPLOC + (i * 2), false); 
         
-        // 🌟 CRITICAL FIX: Explicitly evaluate dynamic key parameters from dataOffsets dictionary map
+        // 💡【重要修正】DATA9〜12の配列も16bit配列のため、peakIndex を「2倍」して正確なバイナリオフセットに変換して抽出！
         const vals = [
             { base: baseMap[0], val: view.getUint16(dataOffsets[9]  + (peakIndex * 2), false) },
             { base: baseMap[1], val: view.getUint16(dataOffsets[10] + (peakIndex * 2), false) },
@@ -2157,31 +2479,32 @@ function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1File
             { base: baseMap[3], val: view.getUint16(dataOffsets[12] + (peakIndex * 2), false) }
         ];
         
-        // Safely sort intensities descending
+        // シグナル強度の高い順にソート
         vals.sort((a, b) => b.val - a.val);
-        const max1 = vals[0];
-        const max2 = vals[1];
 
-        if (max2.val > max1.val * noiseThresholdRatio && max1.base !== max2.base) {
-            queryPeakPool.push([max1.base, max2.base]); 
+        // セカンドピークがメジャーピークの閾値比率（15%）を超えていれば、ヘテロ接合型塩基としてプールに2文字格納
+        if (vals[1].val > vals[0].val * noiseThresholdRatio && vals[0].base !== vals[1].base) {
+            queryPeakPool.push([vals[0].base, vals[1].base]); 
         } else {
-            queryPeakPool.push([max1.base]); 
+            queryPeakPool.push([vals[0].base]); 
         }
     }
 
+    // Reverse strand automatic complement adjustment
     if (isAb1FileReverseStrand) {
-        const compMap = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C' };
+        const compMap = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N', '-': '-' };
         queryPeakPool.reverse();
         queryPeakPool = queryPeakPool.map(bases => bases.map(b => compMap[b] || b));
     }
 
-    const regexTokens = queryPeakPool.map(bases => bases.length > 1 ? `[${bases.join("")}]` : `${bases}`);
+    const regexTokens = queryPeakPool.map(bases => bases.length > 1 ? `[${bases.join("")}]` : `${bases[0]}`);
 
     const gRnaInputEl = document.getElementById("gRnaInput");
     let gRnaSeq = gRnaInputEl ? gRnaInputEl.value.trim().toUpperCase().replace(/[^A-Z]/g, '') : "";
-    if (!gRnaSeq) throw new Error("Input a valid anchor sequence.");
+    if (!gRnaSeq) throw new Error("Please input a valid anchor/gRNA sequence.");
     
-    let waveGnaIndex = queryPeakPool.map(b => b[0]).join("").indexOf(gRnaSeq);
+    const queryConsensusSeq = queryPeakPool.map(bases => bases[0] || "").join("");
+    let waveGnaIndex = queryConsensusSeq.indexOf(gRnaSeq);
     let refGnaIndex = refSeq.indexOf(gRnaSeq);
 
     if (refGnaIndex === -1 || waveGnaIndex === -1) {
@@ -2191,202 +2514,215 @@ function runCorePhaseDeconvolution(arrayBuffer, refSeq, offsetSetting, isAb1File
     const queryCutSite = waveGnaIndex + gRnaSeq.length - 3;
     const refCutSite = refGnaIndex + gRnaSeq.length - 3;
 
-    // --- [STEP 1] 変異開始点の検出 ---
+    // --- [STEP 1] ファーストアンカー変異開始点の検出（元のシンプルで頑強な1対1比較を完全復元） ---
     let currentQueryIdx = queryCutSite;
     let currentRefIdx = refCutSite;
     let mutationStartQuery = -1;
     let mutationStartRef = -1;
 
-    // 🌟 順鎖と逆鎖で、カットサイトからの最初の変異スキャン方向を分岐
-    if (!isAb1FileReverseStrand) {
-        // 【順鎖】3'下流（インデックス増加方向）へ向かって最初の変異を探索
-        while (currentQueryIdx < queryPeakPool.length && currentRefIdx < refSeq.length) {
-            const allowedBases = queryPeakPool[currentQueryIdx];
-            const refBase = refSeq.charAt(currentRefIdx);
-            if (allowedBases.length > 1 || !allowedBases.includes(refBase)) {
-                mutationStartQuery = currentQueryIdx;
-                mutationStartRef = currentRefIdx;
-                break;
-            }
-            currentQueryIdx++;
-            currentRefIdx++;
+    while (currentQueryIdx < queryPeakPool.length && currentRefIdx < refSeq.length) {
+        const allowedBases = queryPeakPool[currentQueryIdx];
+        const refBase = refSeq.charAt(currentRefIdx);
+
+        if (allowedBases.length > 1 || !allowedBases.includes(refBase)) {
+            mutationStartQuery = currentQueryIdx;
+            mutationStartRef = currentRefIdx;
+            break;
         }
-    } else {
-        // 【逆鎖】順鎖リファレンスの5'上流（インデックス減少方向）へ向かって最初の変異を探索
-        while (currentQueryIdx >= 0 && currentRefIdx >= 0) {
-            const allowedBases = queryPeakPool[currentQueryIdx];
-            const refBase = refSeq.charAt(currentRefIdx);
-            if (allowedBases.length > 1 || !allowedBases.includes(refBase)) {
-                mutationStartQuery = currentQueryIdx;
-                mutationStartRef = currentRefIdx;
-                break;
-            }
-            currentQueryIdx--;
-            currentRefIdx--;
-        }
+        currentQueryIdx++;
+        currentRefIdx++;
     }
 
     if (mutationStartQuery === -1) {
         throw new Error("No mutation footprint or phase shift detected within the trace profile.");
     }
 
-    // --- [STEP 2] スライディング k-mer プローブによる同期領域の探索 ---
+    // ※ここから後ろに、前回合意した「あなたのヘテロ検出思想完全復元・対称ドッキングロジック（probeSize = 20 のスライド探索窓）」がそのまま続きます。
+
+    // =================================================================
+    // 🌟【あなたの設計思想完全再現】動的双方向伸長 ＋ クエリ中間M回収 ＋ 3'末端同調コア
+    // =================================================================
     const probeSize = 20;
-    let foundQueryIdx = -1;
-    let finalRefProbeStr = "";
     
-    // 逆鎖の場合は、gRNAの上流（5'側）へ向かって20-merのプローブをスライドさせる
-    let probeRefStart = !isAb1FileReverseStrand
-        ? (refGnaIndex + gRnaSeq.length + offsetSetting) // 順鎖: gRNAのさらに下流から開始
-        : (refGnaIndex - offsetSetting - probeSize);     // 逆鎖: gRNAのさらに上流から開始
+    let anchorA = { rStart: -1, qStart: -1, leftExtendedA: [], rightExtendedA: [], isFound: false };
+    let anchorB = { rStart: -1, qStart: -1, leftExtendedB: [], rightExtendedB: [], isFound: false };
 
-    if (!isAb1FileReverseStrand) {
-        // 【順鎖】下流へスライド
-        while (probeRefStart + probeSize <= refSeq.length) {
-            const refProbeStr = refSeq.substring(probeRefStart, probeRefStart + probeSize);
-            let isMatchAtAnyPos = false;
+    // --- [設計書ステップ 1 & 4] セカンドアンカーの自動生成（リファレンススライド機構） ---
+    let scanProbeRefStart = mutationStartRef + 5;
+    const searchLimitRef = refSeq.length - 50;
 
-            for (let q = mutationStartQuery; q <= regexTokens.length - probeSize; q++) {
-                let isMatch = true;
+    while (scanProbeRefStart + probeSize <= searchLimitRef) {
+        const secondAnchorSeq = refSeq.substring(scanProbeRefStart, scanProbeRefStart + probeSize);
+
+        // --- [設計書ステップ 2] アレルAの探索（クエリのファーストアンカーより後の配列にマッチさせる） ---
+        if (!anchorA.isFound) {
+            for (let q = mutationStartQuery; q <= queryPeakPool.length - probeSize; q++) {
+                let matchCount = 0;
                 for (let k = 0; k < probeSize; k++) {
-                    if (!regexTokens[q + k].replace(/[\[\]]/g, '').includes(refProbeStr.charAt(k))) { isMatch = false; break; }
+                    if (regexTokens[q + k].replace(/[\[\]]/g, '').includes(secondAnchorSeq.charAt(k))) matchCount++;
                 }
-                if (isMatch) { foundQueryIdx = q; finalRefProbeStr = refProbeStr; isMatchAtAnyPos = true; break; }
-            }
-            if (isMatchAtAnyPos) break;
-            probeRefStart++;
-        }
-    } else {
-        // 【逆鎖】上流へスライド（インデックスを減算していく）
-        while (probeRefStart >= 0) {
-            const refProbeStr = refSeq.substring(probeRefStart, probeRefStart + probeSize);
-            let isMatchAtAnyPos = false;
 
-            // 逆鎖ファイルにとっての進行方向（3'下流＝配列のインデックス減少方向）に向かって探索
-            for (let q = mutationStartQuery; q >= 0; q--) {
-                if (q + probeSize > regexTokens.length) continue;
-                let isMatch = true;
+                if (matchCount === probeSize) {
+                    anchorA.rStart = scanProbeRefStart;
+                    anchorA.qStart = q;
+                    anchorA.isFound = true;
+                    break;
+                }
+            }
+        }
+
+        // --- [設計書ステップ 3] アレルBの探索（アレルAのセカンドアンカー位置よりも3'側を探索） ---
+        if (!anchorB.isFound) {
+            const bSearchStart = anchorA.isFound ? anchorA.qStart + 1 : mutationStartQuery;
+            
+            for (let q = bSearchStart; q <= queryPeakPool.length - probeSize; q++) {
+                let matchCount = 0;
                 for (let k = 0; k < probeSize; k++) {
-                    if (!regexTokens[q + k].replace(/[\[\]]/g, '').includes(refProbeStr.charAt(k))) { isMatch = false; break; }
+                    if (regexTokens[q + k].replace(/[\[\]]/g, '').includes(secondAnchorSeq.charAt(k))) matchCount++;
                 }
-                if (isMatch) { foundQueryIdx = q; finalRefProbeStr = refProbeStr; isMatchAtAnyPos = true; break; }
-            }
-            if (isMatchAtAnyPos) break;
-            probeRefStart--;
-        }
-    }
-    
-    const distanceBetweenPoints = Math.abs(probeRefStart - mutationStartRef);
-    
-    // 同期ポイントが変異開始点のすぐそば（例: 5bp以内）で見つかった場合は、変異なしと判定
-    if (foundQueryIdx === -1 || distanceBetweenPoints <= 5) {
-        // 変異がなかったものとして、全長リファレンスと同じ配列をそのまま返す
-        return {
-            indelStartRefPos: "None", // 画面上での誤解を防ぐために文字列 "None" を明記
-            indelEndRefPos: "None",
-            referenceSegment: refSeq, 
-            alleleA: refSeq,
-            alleleB: refSeq
-        };
-    }
-    
-    if (foundQueryIdx === -1) {
-        throw new Error("Failed to identify the downstream realignment boundary (secondary anchor point).");
-    }
 
-    // --- [STEP 3] 同期ヒット位置からカットサイトに向かって逆算スキャン（インデル分離） ---
-    // ヒットした20-merの「変異側境界の1文字」からスタート
-    let scanQuery = !isAb1FileReverseStrand ? (foundQueryIdx - 1) : (foundQueryIdx + probeSize);
-    let scanRef = !isAb1FileReverseStrand ? (probeRefStart - 1) : (probeRefStart + probeSize);
-
-    let alleleA_Core = [];
-    let alleleB_Core = [];
-
-    if (!isAb1FileReverseStrand) {
-        // 【順鎖】右(3')から左(5')のカットサイトへ戻る
-        while (scanQuery >= mutationStartQuery && scanRef >= mutationStartRef) {
-            const allowedBases = queryPeakPool[scanQuery];
-            const refBase = refSeq.charAt(scanRef);
-            if (allowedBases.includes(refBase)) {
-                alleleA_Core.unshift(refBase);
-                alleleB_Core.unshift(allowedBases.length > 1 ? allowedBases.find(b => b !== refBase) : refBase);
-                scanQuery--; scanRef--;
-            } else {
-                alleleA_Core.unshift("-");
-                alleleB_Core.unshift(allowedBases[0]);
-                scanQuery--;
+                if (matchCount === probeSize) {
+                    anchorB.rStart = scanProbeRefStart;
+                    anchorB.qStart = q;
+                    anchorB.isFound = true;
+                    break;
+                }
             }
         }
-    } else {
-        // 【逆鎖】左(5')から右(3')のカットサイトへ戻る（インデックスは増加方向）
-        while (scanQuery <= mutationStartQuery && scanRef <= mutationStartRef) {
-            const allowedBases = queryPeakPool[scanQuery];
-            const refBase = refSeq.charAt(scanRef);
-            if (allowedBases.includes(refBase)) {
-                alleleA_Core.push(refBase); // 逆鎖は左から右へ回収するため push
-                alleleB_Core.push(allowedBases.length > 1 ? allowedBases.find(b => b !== refBase) : refBase);
-                scanQuery++; scanRef++;
-            } else {
-                alleleA_Core.push("-");
-                alleleB_Core.push(allowedBases[0]);
-                scanQuery++;
-            }
+
+        if (anchorA.isFound && anchorB.isFound) break;
+        scanProbeRefStart++; 
+    }
+
+    if (!anchorA.isFound) {
+        return { indelStartRefPos: "None", indelEndRefPos: "None", referenceSegment: refSeq, alleleA: queryConsensusSeq, alleleB: queryConsensusSeq };
+    }
+    if (!anchorB.isFound) { anchorB.rStart = anchorA.rStart; anchorB.qStart = anchorA.qStart; anchorB.isFound = true; }
+
+
+    // =================================================================
+    // 🌟【ヘテロ誤判定完全防止版】骨格ビルド ＋ 3'末端同調コア
+    // =================================================================
+    
+    // ─── ■ 1. アレルAの右側伸長 ───
+    let scanQ_RightA = anchorA.qStart + probeSize;
+    let scanR_RightA = anchorA.rStart + probeSize;
+    while (scanQ_RightA < queryPeakPool.length && scanR_RightA < refSeq.length) {
+        const allowedBases = queryPeakPool[scanQ_RightA];
+        const nextRefChar = refSeq.charAt(scanR_RightA);
+
+        if (allowedBases.includes(nextRefChar)) {
+            anchorA.rightExtendedA.push(nextRefChar);
+            scanQ_RightA++;
+            scanR_RightA++;
+        } else {
+            break;
         }
     }
 
-    // 未分離領域（インデルの中心の隙間）の回収
-    let centerQueryStrB = "";
-    let centerRefStr = "";
-    
-    if (!isAb1FileReverseStrand) {
-        for (let x = mutationStartQuery; x <= scanQuery; x++) centerQueryStrB += queryPeakPool[x][0];
-        centerRefStr = refSeq.substring(mutationStartRef, scanRef + 1);
-    } else {
-        for (let x = scanQuery; x <= mutationStartQuery; x++) centerQueryStrB += queryPeakPool[x][0];
-        centerRefStr = refSeq.substring(scanRef, mutationStartRef + 1);
+const HETERO_HASH_MAP = {
+    'W': { 'A': 'T', 'T': 'A' }, // A or T
+    'S': { 'C': 'G', 'G': 'C' }, // C or G
+    'M': { 'A': 'C', 'C': 'A' }, // A or C
+    'K': { 'G': 'T', 'T': 'G' }, // G or T
+    'R': { 'A': 'G', 'G': 'A' }, // A or G
+    'Y': { 'C': 'T', 'T': 'C' }  // C or T
+};
+
+
+    // =================================================================
+    // 🌟【脱落完全防止】隙間ゼロ・高精度ハッシュ駆動ポスト置換統合コア
+    // =================================================================
+    const shared5Prime = refSeq.substring(0, mutationStartRef);
+
+    // ─── ■ 1. アレルA（メジャー波形）の中間領域M(A)の回収 ───
+    const currentQueryProgressA = anchorA.qStart - anchorA.leftExtendedA.length;
+    let m_A = "";
+    for (let x = mutationStartQuery; x < currentQueryProgressA; x++) {
+        m_A += (queryPeakPool[x] && queryPeakPool[x][0]) ? queryPeakPool[x][0] : ""; 
     }
-    
-    let alignedQueryA = "-".repeat(centerRefStr.length);
-    let alignedQueryB = centerQueryStrB;
-    let alignedRefCenter = centerRefStr;
+    // 💡【重要修正】セカンドアンカー(probeSize)の直後に、右側伸長(rightExtendedA)を1文字も漏らさずここで完全結合！
+    let anchorA_TotalStr = refSeq.substring(anchorA.rStart, anchorA.rStart + probeSize) + (anchorA.rightExtendedA ? anchorA.rightExtendedA.join("") : "");
+    let finalCoreA = m_A + anchorA_TotalStr;
 
-    if (centerRefStr.length < centerQueryStrB.length) {
-        const gapSize = centerQueryStrB.length - centerRefStr.length;
-        alignedRefCenter += "-".repeat(gapSize);
-        alignedQueryA += "-".repeat(gapSize);
-    } else if (centerRefStr.length > centerQueryStrB.length) {
-        const gapSize = centerRefStr.length - centerQueryStrB.length;
-        alignedQueryB += "-".repeat(gapSize);
+    // ─── ■ 2. アレルB（遠い側・ヘテロ波形）の中間領域M(B)の回収 ───
+    const currentQueryProgressB = anchorB.qStart - anchorB.leftExtendedB.length;
+    let m_B = "";
+    for (let x = mutationStartQuery; x < currentQueryProgressB; x++) {
+        const allowedBases = queryPeakPool[x];
+        if (!allowedBases || allowedBases.length === 0) continue;
+
+        if (allowedBases.length > 1) {
+            m_B += allowedBases[1]; // 裏波形（セカンドピーク）
+        } else {
+            m_B += allowedBases[0]; // 表波形（プライマリピーク）
+        }
     }
+    // 💡【重要修正】アレルB側も、右側伸長(rightExtendedB)があればここで確実にドッキング
+    let anchorB_TotalStr = refSeq.substring(anchorB.rStart, anchorB.rStart + probeSize) + (anchorB.rightExtendedB ? anchorB.rightExtendedB.join("") : "");
+    let finalCoreB = m_B + anchorB_TotalStr;
 
-    // --- [STEP 4] 順鎖リファレンス軸に完全同期した全長配列の組み立て ---
-    let finalRef, finalA, finalB;
 
-    if (!isAb1FileReverseStrand) {
-        const shared5Prime = refSeq.substring(0, mutationStartRef);
-        const confirmed3Prime = alleleA_Core.join("") + refSeq.substring(probeRefStart);
-        finalRef = shared5Prime + alignedRefCenter + confirmed3Prime;
-        finalA   = shared5Prime + alignedQueryA + confirmed3Prime;
-        finalB   = shared5Prime + alignedQueryB + (alleleB_Core.join("") + refSeq.substring(probeRefStart));
-    } else {
-        // 【逆鎖】リファレンス上の位置関係が「逆転」しているため、パーツの結合順序を左右反転させる
-        const shared3Prime = refSeq.substring(mutationStartRef + 1);
-        const confirmed5Prime = refSeq.substring(0, probeRefStart + probeSize) + alleleA_Core.join("");
+    // ─── ■ 3. ハッシュ置換（あなたの爆速相方補正ロジックを実行） ───
+    const heteroPairLookup = {
+        'AT': 'T', 'TA': 'A', 'CG': 'G', 'GC': 'C',
+        'AC': 'C', 'CA': 'A', 'GT': 'T', 'TG': 'G',
+        'AG': 'G', 'GA': 'A', 'CT': 'T', 'TC': 'C'
+    };
+
+    let arrayCoreA = finalCoreA.split("");
+    let arrayCoreB = finalCoreB.split("");
+    const scanLength = Math.min(arrayCoreA.length, arrayCoreB.length);
+
+    for (let offset = 0; offset < scanLength; offset++) {
+        const traceIdx = mutationStartQuery + offset;
+        const allowedBases = queryPeakPool[traceIdx];
         
-        // 順鎖リファレンスの座標軸(5' -> 3')の向きに完全整合するように配置
-        finalRef = confirmed5Prime + alignedRefCenter + shared3Prime;
-        finalA   = confirmed5Prime + alignedQueryA + shared3Prime;
-        finalB   = (refSeq.substring(0, probeRefStart + probeSize) + alleleB_Core.join("")) + alignedQueryB + shared3Prime;
+        if (allowedBases && allowedBases.length === 2) {
+            const charA = arrayCoreA[offset];
+            const charB = arrayCoreB[offset];
+
+            if (charA === charB) {
+                const altChar = allowedBases.find(b => b !== charA);
+                const partnerKey = altChar ? (charA + altChar) : null;
+                
+                if (partnerKey && heteroPairLookup[partnerKey]) {
+                    arrayCoreB[offset] = heteroPairLookup[partnerKey];
+                }
+            }
+        }
     }
+
+    // 置換・修復が100%完了した最新のクリーンコア文字列を確定
+    const safeCoreA = arrayCoreA.join("");
+    const safeCoreB = arrayCoreB.join("");
+
+
+    // ─── ■ 4. 3'末端の残り配列を「隙間ゼロ」で安全にドッキング ───
+    // 💡【最重要の数理補正】すでに safeCoreA 内に rightExtendedA.length までの文字が
+    // すべて内包されているため、3'末端の切り出し開始位置（EndRef）の計算を完璧に同期させます。
+    const safeAnchorAEndRef = anchorA.rStart + probeSize + (anchorA.rightExtendedA ? anchorA.rightExtendedA.length : 0);
+    const safeAnchorBEndRef = anchorB.rStart + probeSize + (anchorB.rightExtendedB ? anchorB.rightExtendedB.length : 0);
+    
+    const safeRemainingA3Prime = refSeq.substring(safeAnchorAEndRef);
+    const safeRemainingB3Prime = refSeq.substring(safeAnchorBEndRef);
+
+    const safeFinalA = shared5Prime + safeCoreA + safeRemainingA3Prime;
+    const safeFinalB = shared5Prime + safeCoreB + safeRemainingB3Prime;
 
     return {
-        indelStartRefPos: !isAb1FileReverseStrand ? mutationStartRef : probeRefStart,
-        indelEndRefPos: !isAb1FileReverseStrand ? probeRefStart : mutationStartRef,
-        referenceSegment: finalRef, 
-        alleleA: finalA,
-        alleleB: finalB
+        indelStartRefPos: mutationStartRef,
+        alleleAEndRefPos: safeAnchorAEndRef,
+        alleleBEndRefPos: safeAnchorBEndRef,
+        referenceSegment: refSeq, 
+        alleleA: safeFinalA, 
+        alleleB: safeFinalB
     };
+
+
+
 }
+
 
 /**
  * Fast Needleman-Wunsch Scoring Core (No traceback needed for simple score matrix)
@@ -2475,6 +2811,127 @@ function needlemanWunsch(ref, query) {
     }
 
     return { alignedRef, alignedQuery };
+}
+
+function computePureNW(seq1, seq2) {
+    // 🧬 3'相同領域を最大活用する最強の配点パラメーター
+    const MATCH = 2;
+    const MISMATCH = -4;     // ミスマッチをさらに重くし、3'側の文字ズレを強力に防止
+    const GAP_OPEN = -6;     // ギャップ開始をさらに重くし、細切れ化を完全防御
+    const GAP_EXTEND = -1;   // ギャップ伸長は軽くし、中央インデルを1箇所に固める
+
+    const n = seq1.length, m = seq2.length;
+    if (n === 0 || m === 0) {
+        return { a1: "-".repeat(m), a2: "-".repeat(n) };
+    }
+    
+    // アフィン・ギャップ・ペナルティ用の3つのDPマトリックス
+    let M = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    let X = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    let Y = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    
+    // トレースバック用のマトリックス (1:Mから, 2:Xから, 3:Yから)
+    const traceM = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
+    const traceX = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
+    const traceY = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1));
+
+    // 💡 5'端（左側）のズレはシークエンス特有の理由で長さが違うため、初期ペナルティを「無料」にする
+    for (let i = 1; i <= n; i++) {
+        M[i][0] = -Infinity;
+        X[i][0] = 0; // seq1(リファレンス)の5'端ギャップは無料
+        Y[i][0] = -Infinity;
+    }
+    for (let j = 1; j <= m; j++) {
+        M[0][j] = -Infinity;
+        X[0][j] = -Infinity;
+        Y[0][j] = 0; // seq2(クエリ)の5'端ギャップは無料
+    }
+    M[0][0] = 0;
+    X[0][0] = -Infinity;
+    Y[0][0] = -Infinity;
+
+    // DPマトリックスの計算
+    for (let i = 1; i <= n; i++) {
+        const c1 = seq1.charAt(i - 1);
+        for (let j = 1; j <= m; j++) {
+            const c2 = seq2.charAt(j - 1);
+            const score_match = (c1 === c2) ? MATCH : MISMATCH;
+
+            // 1. Mマトリックスの更新
+            const fromM = M[i - 1][j - 1] + score_match;
+            const fromX = X[i - 1][j - 1] + score_match;
+            const fromY = Y[i - 1][j - 1] + score_match;
+            const maxM = Math.max(fromM, fromX, fromY);
+            M[i][j] = maxM;
+            if (maxM === fromM) traceM[i][j] = 1;
+            else if (maxM === fromX) traceM[i][j] = 2;
+            else traceM[i][j] = 3;
+
+            // 2. Xマトリックスの更新（リファレンスに文字、クエリにギャップ＝欠失）
+            const openX = M[i - 1][j] + GAP_OPEN;
+            const extendX = X[i - 1][j] + GAP_EXTEND;
+            X[i][j] = Math.max(openX, extendX);
+            traceX[i][j] = (openX >= extendX) ? 1 : 2;
+
+            // 3. Yマトリックスの更新（リファレンスにギャップ、クエリに文字＝挿入）
+            const openY = M[i][j - 1] + GAP_OPEN;
+            const extendY = Y[i][j - 1] + GAP_EXTEND;
+            Y[i][j] = Math.max(openY, extendY);
+            traceY[i][j] = (openY >= extendY) ? 1 : 3;
+        }
+    }
+
+    // 💡【最大の修正：3'末端完全ロック】
+    // 3'側には長大な相同領域があると分かっているため、途中でアライメントを打ち切らせず、
+    // マトリックスの「最右下（i = n, j = m）」、つまりお互いの配列の最後の文字同士から強制的にバックトラックを開始します。
+    let i = n, j = m;
+    
+    // 最後のセルで最も高いスコアを持つマトリックスを選択
+    let currentMatrix = 1; 
+    let maxEndScore = M[n][m];
+    if (X[n][m] > maxEndScore) { maxEndScore = X[n][m]; currentMatrix = 2; }
+    if (Y[n][m] > maxEndScore) { maxEndScore = Y[n][m]; currentMatrix = 3; }
+
+    let aligned1 = "", aligned2 = "";
+
+    // バックトラック（トレースバック）ループ
+    while (i > 0 || j > 0) {
+        if (currentMatrix === 1) { // Mマトリックスから戻る
+            const nextMatrix = traceM[i][j];
+            aligned1 = seq1.charAt(i - 1) + aligned1;
+            aligned2 = seq2.charAt(j - 1) + aligned2;
+            i--; j--;
+            currentMatrix = nextMatrix;
+        } else if (currentMatrix === 2) { // Xマトリックスから戻る
+            const nextMatrix = traceX[i][j];
+            aligned1 = seq1.charAt(i - 1) + aligned1;
+            aligned2 = "-" + aligned2;
+            i--;
+            currentMatrix = nextMatrix;
+        } else if (currentMatrix === 3) { // Yマトリックスから戻る
+            const nextMatrix = traceY[i][j];
+            aligned1 = "-" + aligned1;
+            aligned2 = seq2.charAt(j - 1) + aligned2;
+            j--;
+            currentMatrix = nextMatrix;
+        } else {
+            // 5'端（左側）の無料ギャップ領域に到達した場合の処理
+            // ここに到達したということは、どちらかの配列の先頭までアライメントが完了したことを意味します
+            if (i > 0) {
+                aligned1 = seq1.substring(0, i) + aligned1;
+                aligned2 = "-".repeat(i) + aligned2;
+                i = 0;
+            }
+            if (j > 0) {
+                aligned1 = "-".repeat(j) + aligned1;
+                aligned2 = seq2.substring(0, j) + aligned2;
+                j = 0;
+            }
+            break;
+        }
+    }
+
+    return { a1: aligned1, a2: aligned2 };
 }
 
 </script>
