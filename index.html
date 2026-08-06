@@ -3916,39 +3916,82 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
     }
     
     // 💡 修正：2重に重複していたブロックを1つに統合し、完全に一番上へマージします
+    // ─── 🎯 【COMPILE BIALLELIC MULTI-SEQUENCE ALIGNMENT PANEL WITH EXPORT SYSTEM】 ───
     if (msaBatchResultsPool.length > 0) {
         console.log(`🧬 [HORIZONTAL CANVAS MATRIX]: Merging ${msaBatchResultsPool.length} phased templates...`);
         const msaRows = generateBiallelicBatchMSA(msaBatchResultsPool, refSeq);
 
         if (msaRows && msaRows.length > 0) {
-            let msaHtml = `
-                <div style="background: #ffffff; padding: 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: #111; margin-top: 10px; margin-bottom: 25px; border: 1px solid #cbd5e0;">
-                    <h3 style="margin: 0 0 5px 0; color: #2c3e50; font-family: sans-serif;">📊 CRISPR Biallelic Batch Multiple Sequence Alignment</h3>
-                    <p style="font-size: 12px; color: #64748b; margin: 0 0 15px 0; font-family: sans-serif;">
-                        All sample alleles are locked horizontally under the exact same reference column footprint coordinate tracking index. Gaps (-) represent deletion tracks.
-                    </p>
-                    <div style="position: relative; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: pre; background: #1e1e1e; color: #ffffff !important; padding: 16px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-size: 13px; line-height: 1.7; letter-spacing: 0px;">`;
+            // 💡 PREPARE FILE RAW DOWNLOAD BUFFERS (FASTA & Alignment text files)
+            let fastaContent = "";
+            let alignmentContent = `CRISPR BATCH MULTIPLE SEQUENCE ALIGNMENT REPORT\n`;
+            alignmentContent += `Generated: ${new Date().toLocaleString()}\n`;
+            alignmentContent += `\n` + "=".repeat(80) + `\n\n`;
 
             msaRows.forEach(row => {
-                // HTMLが連続スペースを縮小・無視するのを防ぐため、空白を &nbsp; に置換
-                const cleanLabel = row.label.replace(/ /g, '&nbsp;');
-
                 if (row.isRef) {
-                    // 基準軸（Reference）：flexレイアウトで横幅を320pxに固定
+                    // 🎯 Add Reference to Alignment TXT
+                    alignmentContent += `${row.label.padEnd(30, ' ')}: ${row.sequence}\n\n`;
+                    
+                    // 🎯 Add Reference to FASTA (Strips layout dashes to keep the reference sequence intact)
+                    const gaplessRef = row.sequence.replace(/-/g, '');
+                    fastaContent += `>REFERENCE_BASELINE\n${gaplessRef}\n`;
+                } else {
+                    // FASTA formatting strips out layout gap dashes (-) to remain 100% gapless and trace-faithful
+                    const gaplessSeq = row.sequence.replace(/-/g, '');
+                    fastaContent += `>${row.label.replace(/ \| /g, '_').replace(/ /g, '_')}\n${gaplessSeq}\n`;
+                    
+                    alignmentContent += `${row.label.padEnd(30, ' ')}: ${row.sequence}\n`;
+                    if (row.label.includes("Allele B") || row.label.includes("B)")) {
+                        alignmentContent += `\n`; // Add space between samples in raw text file
+                    }
+                }
+            });
+
+            // Standard base64/URI encoding data blocks for instant client-side file saves
+            const fastaBlobBase64 = btoa(unescape(encodeURIComponent(fastaContent)));
+            const alignBlobBase64 = btoa(unescape(encodeURIComponent(alignmentContent)));
+
+            let msaHtml = `
+                <div style="background: #ffffff; padding: 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: #111; margin-top: 10px; margin-bottom: 25px; border: 1px solid #cbd5e0;">
+                    
+                    <!-- 📥 FLEXBOX EXPORT ENGINE BUTTON CONTAINER BUTTON BAR -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                        <div>
+                            <h3 style="margin: 0; color: #2c3e50; font-family: sans-serif;">📊 CRISPR Biallelic Batch Multiple Sequence Alignment</h3>
+                            <p style="font-size: 11px; color: #64748b; margin: 2px 0 0 0; font-family: sans-serif;">
+                                All sample alleles are locked horizontally under the exact same reference column footprint coordinate tracking index.
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <!-- Button 1: Download Gapless Raw FASTA -->
+                            <a href="data:text/plain;charset=utf-8;base64,${fastaBlobBase64}" download="crispr_phased_alleles_gapless.fasta" 
+                               style="display: inline-flex; align-items: center; background: #27ae60; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: background 0.2s;">
+                                📥 Download FASTA (Gapless)
+                            </a>
+                            <!-- Button 2: Download Aligned Matrix Report TXT -->
+                            <a href="data:text/plain;charset=utf-8;base64,${alignBlobBase64}" download="crispr_batch_msa_alignment.txt" 
+                               style="display: inline-flex; align-items: center; background: #2980b9; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: background 0.2s;">
+                                📥 Download Alignment (.txt)
+                            </a>
+                        </div>
+                    </div>
+
+                    <div style="position: relative; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: pre; background: #1e1e1e; color: #ffffff !important; padding: 16px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-size: 13px; line-height: 1.7; letter-spacing: 0px;">`;
+
+            // ─── 🔄 【KEEP YOUR EXACT FOR-EACH RENDERER LOOP UNTOUCHED HERE】 ───
+            msaRows.forEach(row => {
+                const cleanLabel = row.label.replace(/ /g, '&nbsp;');
+                if (row.isRef) {
                     msaHtml += `<div style="display: flex; align-items: baseline; margin-bottom: 2px;">`;
                     msaHtml += `  <div style="width: 320px; flex-shrink: 0; color: #58a6ff; font-weight: bold; border-bottom: 1px dashed #388bfd; padding-bottom: 2px;">${cleanLabel}:</div>`;
                     msaHtml += `  <div style="color: #58a6ff; font-weight: bold; word-break: break-all;">${row.sequence}</div>`;
-                    msaHtml += `</div>`; // 💡 改行（\n\n）を完全に排除し、リファレンスとクエリの間の隙間をゼロに！
+                    msaHtml += `</div>`;
                 } else {
                     const isAlleleB = row.label.includes("Allele B") || row.label.includes("B)");
-                    const labelColor = isAlleleB ? "#ff7b72" : "#7ee787"; // Bは赤/ピンク、Aは緑
-                    
+                    const labelColor = isAlleleB ? "#ff7b72" : "#7ee787";
                     let stylizedSeq = "";
-                    for (let char of row.sequence) {
-                        stylizedSeq += (char === "-") ? `<span style="color: #484f58;">-</span>` : char;
-                    }
-
-                    // クエリ行：まったく同じ横幅（320px）のflexブロックで包むことで、文字長に関わらず右側が縦一列に整列
+                    for (let char of row.sequence) { stylizedSeq += (char === "-") ? `<span style="color: #484f58;">-</span>` : char; }
                     msaHtml += `<div style="display: flex; align-items: baseline; margin-bottom: 2px;">`;
                     msaHtml += `  <div style="width: 320px; flex-shrink: 0; color: ${labelColor};">${cleanLabel}:</div>`;
                     msaHtml += `  <div style="word-break: break-all;">${stylizedSeq}</div>`;
@@ -3957,13 +4000,10 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             });
 
             msaHtml += `</div></div>`;
-
-            // 💡 【レイアウト最上部への反転挿入】
-            // 個別カード（globalHtmlBuffer）の手前に msaHtml をドッキングさせることで、
-            // 画面の一番上（最初）に一括MSAボードが美しく表示されるようになります！
             globalHtmlBuffer = msaHtml + globalHtmlBuffer; 
         }
     }
+
 
     // 蓄積された「最上部の一括MSA ＋ 全サンプルの個別カード群」をまとめて画面に一発出力！
     if (chartOutputEl) {
