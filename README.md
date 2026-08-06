@@ -72,7 +72,7 @@ The `demo/` folder contains real-world validation datasets designed to test the 
 
 * **`Clark_2025_zenodo_cane_toad_CRISPR-Cas9_ab1_files/`** (Directory):
   * A real-world validation dataset containing raw binary chromatogram (`.ab1`) files from a CRISPR-Cas9 genome editing experiment targeting the *Rhinella marina* (Cane Toad) genome. 
-  * **Data Source & Attribution**: This dataset is sourced from the public repository associated with the bioRxiv preprint (Clark, 2025, https://doi.org/10.1101/2025.05.15.654396) under a Creative Commons Attribution 4.0 International (CC-BY 4.0) license. A formal data description and associated biological study are available in the peer-reviewed article (Clark et al., 2025, https://doi.org/10.1177/25731599251382427).
+  * **Data Source & Attribution**: This dataset is sourced from the public repository Zenodo (Clark, 2025, https://zenodo.org/records/15945185) under a Creative Commons Attribution 4.0 International (CC-BY 4.0) license. A formal data description and associated biological study are available in the peer-reviewed article (Clark et al., 2025, https://doi.org/10.1177/25731599251382427).
 
   * **Testing Orientation Flexibility**: This folder contains true heterozygous mixed-trace files sequenced from both **Forward** and **Reverse Complement (RC)** strand configurations. 
 
