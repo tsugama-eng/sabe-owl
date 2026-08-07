@@ -80,7 +80,7 @@ The `demo/` folder contains real-world validation datasets designed to test the 
 
 ### Step-by-Step Heterozygous Phase Analysis Tutorial
 
-To evaluate SAVE-OWL's unique wave-driven phase deconvolution and absolute-coordinate projection capabilities, execute the following workflow using the provided Cane Toad demo files:
+To evaluate SABE-OWL's unique wave-driven phase deconvolution and absolute-coordinate projection capabilities, execute the following workflow using the provided Cane Toad demo files:
 
 1. **Set the Reference Framework**: Copy and paste the target gene's wild-type sequence ("fwd_control.ab1" or "rev_control.ab1") into the **Reference Sequence(s)** input field.
 2. **Load Raw Chromatograms**: Drag and drop the `.ab1` trace files from the `Clark_2025_zenodo_cane_toad_CRISPR-Cas9_ab1_files/` directory into the query ingestion pane.
