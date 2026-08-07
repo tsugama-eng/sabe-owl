@@ -48,17 +48,31 @@ Click *"Download SVG"* to download the chart data in the SVG format. Click *"Dow
 
 ---
 
-## 5. Wave-Driven Phase Deconvolution & Reference-Centric Multiple Sequence Alignment (MSA)
-Checking *"Enable Heterozygous Phase Analysis"* and clicking *"Run Batch Alignment"* initiates a specialized dual-allele deconvolution pipeline designed to analyze complex heterozygous frameshift mutations (such as CRISPR-Cas9-induced indels) directly from raw chromatogram trace data.
+## 5. Trace-Faithful Phase Deconvolution Engine
+Clicking *"Run Phasing"* initiates a specialized, high-fidelity dual-allele deconvolution pipeline designed to resolve overlapping chromatogram tracks (such as biallelic point mutations, fixed substitutions, or block variations) directly from raw ABI file metrics.
 
-*   **Anchor Sequence Selection**: Users must input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of mismatches. This acts as the primary coordinate probe.
-*   **Bidirectional Slidewindow Probing**: Based on the automated forward/reverse strand validation of your `.ab1` file, the system dynamically sweeps an internal 20-mer sliding k-mer probe (secondary probe) upstream (for reverse complement orientations) or downstream (for forward orientations) to calculate the precise structural boundaries where trace harmony ruptures and returns.
-*   **Dual-Allele Unmixing**: Once the phase rupture boundaries are locked, the engine unmixes the overlapping chromatogram traces, isolating individual target variants into distinct **Allele A** and **Allele B** sequence tracks.
-*   **Reference-Centric Grid Viewer**: Clicking *"Generate Alignment"* bypasses traditional gap-scattering progressive algorithms. It projects all isolated alleles onto a unified, absolute reference coordinate system. Samples possessing mutations or insertions relative to the reference sequence flag their track names in **bold red labels**, while perfect matches remain muted.
+*   **Textbox Routing Constraint (Single Reference Rule)**: The phasing engine uses **only the first (top) sequence** of the Reference Sequence(s) textarea to maintain a completely uniform absolute baseline coordinate system.
+*   **Direct Trace Extraction & Tail Auto-Recovery**: The engine directly extracts the raw 4-channel wave data and official base-call positions from your loaded ABI file(s). The algorithm automatically calculates the baseline spacing intervals to restore and complete the trailing peak matrix if a trace cuts off prematurely.
+*   **Localized Peak-Search & Noise Correction**: For every individual base position, the engine automatically scans a local window of *5* sampling points across all four color channels (A, C, G, T), locking onto the true peak maximum to cleanly neutralize trace shifts, background baseline variations, and raw dye-blob anomalies.
+*   **Dynamic User Control Parameter Panel**:
+    *   *Start Position (QPos)*: Overrides the automatic slope detection to force the phasing sequence origin to an absolute coordinate index.
+    *   *Specific Anchor Sequence & Query RC*: Forces the phasing sequence origin to the provided sequence (e.g., a sequence immediately upstream of CRISPR-Cas9 guide RNA) and automatically determines whether to deconvolve in the forward direction or execute a Reverse Complement strand calculation matrix inversion.
+    *   *Regex Window Width*: Determines the size of the sliding regular-expression matching window (default 20 bp) to balance mapping sensitivity against sequence complexity.
+    *   *Secondary Peak Ratio*: Calibrates the software's sensitivity to minor signal heights (default 0.12). True secondary traces above this ratio are processed as polymorphic variants, while signals below are filtered out as clean background noise.
 
 ---
 
-## 6. Demo Data Guide & Important Analysis Note
+## 6. One-to-One Peak Allocation & Biallelic Batch Multiple Sequence Alignment (MSA)
+Once coordinates are locked, the engine decodes overlapping peak signals under a strict rule of 1-to-1 trace faithfulness.
+
+*   **Mutual Trace Complementarity**: The engine splits dual-peak traces by cross-comparing them with the reference sequence template. Allele A actively takes the reference base character, while Allele B captures the alternative sequence track. If a position is clean or lacks a secondary trace, both alleles receive identical base assignments, ensuring zero data loss or artificial mutations.
+*   **Co-linear Equality**: Allele A and Allele B are constructed to be perfectly equal in length, acting as an un-gapped, 1-to-1 reflection of the physical trace peaks. These pure allele sequences are used for downstream alignments.
+*   **Consolidated Dashboard Visualization**: The engine automatically hides the legacy aggregator and displays the **Biallelic Batch Multiple Sequence Alignment Panel** (`#msaPanel`), locking all sample tracks horizontally under a single global tracking index.
+*   **Data Export**: Click *"Download FASTA"* or *"Download Alignment (.txt)"* to generate instant data packages compiled via clean, client-side Blob object allocation.
+
+---
+
+## 7. Demo Data Guide & Important Analysis Note
 
 The `demo/` folder contains real-world validation datasets designed to test the platform's multi-FASTA parsing, automatic reverse-complement alignment, and mismatch plotting capabilities.
 
@@ -84,20 +98,21 @@ To evaluate SABE-OWL's unique wave-driven phase deconvolution and absolute-coord
 
 1. **Set the Reference Framework**: Copy and paste the target gene's wild-type sequence ("fwd_control.ab1" or "rev_control.ab1") into the **Reference Sequence(s)** input field.
 2. **Load Raw Chromatograms**: Drag and drop the `.ab1` trace files from the `Clark_2025_zenodo_cane_toad_CRISPR-Cas9_ab1_files/` directory into the query ingestion pane.
-3. **Configure the Dual-Probe Parameters**:
-   * Check the ***"Enable Heterozygous Phase Analysis"*** box to unlock the deconvolution engine.
-   * **Anchor Sequence Input**: Paste a clean, homozygous sequence block flanking the targeted cleavage site (e.g., a 20 bp sequence immediately upstream/preceding the expected cut point on your forward reference). *Ensure this specific text string is entirely free of mismatches.*
-   * **Secondary Anchor Search Offset (bp)**: Set this field to your desired buffering padding size (the baseline default value is `20`). This establishes the gap spacing before the system deploys the *20-mer sliding k-mer probe (secondary probe)*.
-4. **Execute Deconvolution**: Click ***"Run Batch Alignment"***. The background algorithm will automatically scan for file orientations, dynamically mirror the secondary probe's sliding track direction (upstream for RC tracks, downstream for Forward tracks), locate the realignment boundary, and instantly unmix the traces into independent **Allele A** and **Allele B** vectors.
-5. **Visualize the Standardized Matrix**: Scroll up/down and click ***"Generate Multiple Sequence Alignment (MSA)"***. The framework will display your crisp, dark-themed reference-centric matrix view. Notice how mutated or frame-shifted allele variants are aligned to coordinates, flagging their tracking names in **red labels** while wild-type tracks remain muted.
+3. **Configure the Phasing Advanced Parameters**:
+   * **1. Start Position (QPos)**: Leave blank to use the auto-detection. If you already know the exact base index where the heterozygous indel mutation begins, enter that number (or any) here to force an absolute starting coordinate override.
+   * **2. Specific Anchor Sequence & Query RC**: Paste a clean, homozygous sequence (e.g., a 20 bp sequence immediately upstream/preceding the expected Cas9 cut point) present in the query sequence(s). The engine will automatically scan both strands for this tag, auto-lock the orientation (or force it to RC if *Query RC* is checked), and set the phasing origin to the very next character, bypassing automatic estimation.
+   * **3. Regex Window Width (bp)**: Leave blank to use the system default of `20`. This determines the sliding regular-expression window width used to maintain phase tracking down the remainder of the overlapping trace sequence.
+   * **4. Secondary Peak Ratio**: Leave blank to use the baseline default of `0.12` (12%). Adjust this value lower to capture faint underlying secondary signals, or higher to clean up heavy background noise.
+4. **Execute Deconvolution**: Click ***"Run Phasing"***. The background algorithm will automatically scan for file orientations according to the provided reference sequence and unmix the traces into **Allele A** and **Allele B** sequences. Multiple and individual sequence alignments are then displayed.
+
 
 ---
 
-## 7. Troubleshooting & Verification Best Practices (Critical Alignment Principles)
+## 8. Troubleshooting & Verification Best Practices (Critical Alignment Principles)
 
 Because Sanger trace deconvolution relies on locating automated mathematical boundaries, suboptimal user parameters can occasionally lead to misleading matrix outputs rather than hard errors. Always adhere to the following two validation rules:
 
 1. **Verify Mismatches via Pairwise Alignment**: Before trusting the heterozygous phasing results, it is highly recommended to run the pairwise alignment first to map out exactly where the mutations and mismatches are located. The anchor sequences and search positions for the phase analysis should then be chosen strategically so that they securely flank the specific region containing those identified mismatches.
-2. **Handle Large Indels by Widening the Secondary Offset**: The *Secondary Anchor Search Offset* determines how much "breathing room" the software skips over the mutation site before initiating the 20-mer secondary probe scan. 
-   * If your editing experiment induced a **large insertion clone (e.g., >20 bp inserts)** or a massive deletion, a narrow default offset (like 20 bp) will trap the sliding probe *inside* the disrupted mutation territory. This causes the probe to either fail or lock onto a false repetitive sequence motif.
-   * **The Solution**: If a sample exhibits complex, large-scale variations or returns an irregular layout, simply increase the **Secondary Anchor Search Offset to 40, 50, or 60 bp**. This forces the secondary probe to jump completely past the messy variant zone, securely sandwiching the mutation between clean, homozygous flanking boundaries.
+2. **Optimize via Iterative Testing (The "Push & Compare" Workflow)**: Perfect coordinates may not be obtained on your first try.
+   * **The Dynamic Behavior**: Whether a file triggers an automatic orientation flip or is forced via the *Query RC* checkbox, the backend handles the sequence inversion instantly. The best way to verify your data would be to test different parameters fluidly.
+   * **The Best Practice**: Simply adjust your variables (such as shifting the *1. Start Position*, tweaking the *4. Secondary Peak Ratio*, or toggling *Query RC*) and click ***"Run Phasing"*** multiple times. Inspect both the individual **pairwise alignment blocks** and the global **Biallelic Batch Multiple Sequence Alignment Panel**. When the alignments are long and clean, the phase-lock parameters would be optimal.
