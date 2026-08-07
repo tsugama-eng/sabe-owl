@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)</title>
-    <link rel="icon" type="image/png" href="save-owl.png">
+    <title>SABE-OWL: Sequence Analysis Batch Engine on the Web (Lite)</title>
+    <link rel="icon" type="image/png" href="sabe-owl.png">
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
         .app-container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
@@ -129,8 +129,8 @@
 
 <div class="app-container">
     <h2 class="main-title-container">
-        <span>🧬 SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)</span>
-        <img src="save-owl.png" alt="SAVE-OWL Logo" class="title-logo">
+        <span>🧬 SABE-OWL: Sequence Analysis Batch Engine on the Web (Lite)</span>
+        <img src="sabe-owl.png" alt="SABE-OWL Logo" class="title-logo">
     </h2>
     
     <div class="io-section">
@@ -274,15 +274,9 @@
 
     <!-- 🌟 ③-2 ゲノム編集フェーズ解析専用のマルチプルアラインメントパネル -->
     <div class="aggregator-panel" id="msaPanel" style="display:none; margin-top:20px; border:1px solid #cbd5e0; padding:15px; border-radius:6px; background:#fff;">
-        <h3>🧬 ③ Global Multiple Sequence Alignment View</h3>
-        <p style="font-size: 13px; color: #64748b; margin-top: -5px;">バッチ処理されたすべてのサンプルのアレルA/B配列を、リファレンス配列のタイムライン上に縦一列に並べて表示します。</p>
-        
         <div id="msaStatus" style="font-size: 13px; font-weight: bold; color: #27ae60; margin-bottom: 10px;"></div>
-        
         <!-- 🌟 マルチプルアラインメント結果が出力される専用のボックス（msaChartOutput） -->
-        <div class="chart-box" id="msaChartOutput" style="min-height:100px; background:#f8f9fa; border-radius:4px; border:1px dashed #cbd5e0; padding:10px;">
-            <p style="color: #94a3b8; font-style: italic; text-align:center; padding-top: 20px; margin:0;">Click 'Generate Multiple Sequence Alignment (MSA)' to reconstruct the synchronized multiple track alignment view...</p>
-        </div>
+        <div class="chart-box" id="msaChartOutput" style="min-height:100px; background:#f8f9fa; border-radius:4px; border:1px dashed #cbd5e0; padding:10px;"></div>
     </div>
 
     <div id="reportView"></div>
@@ -312,7 +306,7 @@
             <span class="help-text" style="font-size: 0.9em; display: block; margin-bottom: 8px;">
                 You can download this entire web application as a single file and run it directly on your local machine without an internet connection.
             </span>
-            <a href="index.html" download="SAVE-OWL.html" class="badge-core" style="display: inline-block; padding: 6px 12px; background-color: #4A90E2; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
+            <a href="index.html" download="SABE-OWL.html" class="badge-core" style="display: inline-block; padding: 6px 12px; background-color: #4A90E2; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
                 📥 Download Standalone HTML
             </a>
         </div>
@@ -326,7 +320,7 @@
             <details style="background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                 <summary style="cursor: pointer; font-weight: bold; color: #2ECC71; outline: none;">️ Show Architecture Diagram (Figure 1)</summary>
                 <!-- ※サーバー上に図をPNGかSVG形式で保存してパスを指定してください（TIFFはブラウザ非対応のため） -->
-                <img src="Figure_1.png" alt="SAVE-OWL Architecture Diagram" style="width: 100%; max-width: 600px; height: auto; margin-top: 10px; border: 1px solid #eee; display: block;">
+                <img src="Figure_1.png" alt="SABE-OWL Architecture Diagram" style="width: 100%; max-width: 600px; height: auto; margin-top: 10px; border: 1px solid #eee; display: block;">
                 <a href="Figure_1.png" target="_blank" style="display: inline-block; margin-top: 8px; font-size: 0.85em; color: #4A90E2; text-decoration: none;">🔗 Open in new tab</a>
             </details>
         </div>
@@ -372,15 +366,32 @@
         <p class="help-text">
             Clicking <i>"Count and Plot Mismatches"</i> analyzes mismatches within your selected reference gene or region. The tool automatically counts recurring mismatches across all samples and displays them in a stacked bar chart. Click <i>"Download SVG"</i> to download the chart data in the SVG format. Click <i>"Download Mismatch CSV"</i> to download the mismatch data and its codon translation impact (missense, nonsense, or silent). This features help you identify mismatch hotspots and view the distribution of mismatch types.
         </p>
-        <div class="help-sub">5. Wave-Driven Phase Deconvolution & Reference-Centric multiple sequence alignment (MSA)</div>
+
+        <div class="help-sub">5. Trace-Faithful Phase Deconvolution Engine</div>
         <p class="help-text">
-            Checking <i>"Enable Heterozygous Phase Analysis"</i> and clicking <i>"Run Batch Alignment"</i> initiates a specialized dual-allele deconvolution pipeline designed to analyze complex heterozygous frameshift mutations (such as CRISPR-Cas9-induced indels) directly from raw chromatogram trace data.
+            Clicking <i>"Run Phasing"</i> initiates a specialized, high-fidelity dual-allele deconvolution pipeline designed to resolve overlapping chromatogram tracks (such as biallelic point mutations, fixed substitutions, or block variations) directly from raw ABI file metrics.
         </p>
         <ul class="help-list">
-            <li><b>Anchor Sequence Selection</b>: Users must input a clean, homozygous sequence block flanking the editing site (e.g., 15–25 bp) that is entirely free of mismatches. This acts as the primary coordinate probe.</li>
-            <li><b>Bidirectional Slidewindow Probing</b>: Based on the automated forward/reverse strand validation of your .ab1 file, the system dynamically sweeps an internal 20-mer sliding k-mer probe (secondary probe) upstream (for reverse complement orientations) or downstream (for forward orientations) to calculate the precise structural boundaries where trace harmony ruptures and returns.</li>
-            <li><b>Dual-Allele Unmixing</b>: Once the phase rupture boundaries are locked, the engine unmixes the overlapping chromatogram traces, isolating individual target variants into distinct <b>Allele A</b> and <b>Allele B</b> sequence tracks.</li>
-            <li><b>Reference-Centric Grid Viewer</b>: Clicking <i>"Generate Multiple Sequence Alignment (MSA)"</i> bypasses traditional gap-scattering progressive algorithms. It projects all isolated alleles onto a unified, absolute reference coordinate system. Samples possessing mutations or insertions relative to the reference sequence flag their track names in <b>red labels</b>, while perfect matches remain muted.</li>
+            <li><b>Textbox Routing Constraint (Single Reference Rule)</b>: The phasing engine uses <b>only the first (top) sequence</b> of the Reference Sequence(s) textarea.</li>
+            <li><b>Direct Trace Extraction & Tail Auto-Recovery</b>: The engine directly extracts the raw 4-channel wave data and official base-call positions from your loaded ABI file(s). The algorithm automatically calculates the baseline spacing intervals to restore and complete the trailing peak matrix.</li>
+            <li><b>Localized Peak-Search & Noise Correction</b>: For every individual base position, the engine automatically scans a local window of <i>5</i> sampling points across all four color channels (A, C, G, T), trying to locks onto the true peak maximum and to neutralize trace shifts, background baseline variations, and raw dye-blob anomalies.</li>
+            <li><b>Dynamic User Control Parameter Panel</b>: 
+                <br>• <i>Start Position (QPos)</i>: Overrides the automatic slope detection to force the phasing sequence origin to an absolute coordinate index.
+                <br>• <i>Specific Anchor Sequence & Query RC</i>: Forces the phasing sequence origin to the provided sequence (e.g., a sequence immediately upstream of CRISPR-Cas9 guide RNA) and automatically determines whether to deconvolve in the forward direction or execute a Reverse Complement strand calculation matrix inversion.
+                <br>• <i>Regex Window Width</i>: Determines the size of the sliding regular-expression matching window (default 20 bp) to balance mapping sensitivity against sequence complexity.
+                <br>• <i>Secondary Peak Ratio</i>: Calibrates the software's sensitivity to minor signal heights (default 0.12). True secondary traces above this ratio are processed as polymorphic variants, while signals below are filtered out as clean background noise.
+            </li>
+        </ul>
+
+        <div class="help-sub">6. One-to-One Peak Allocation & Biallelic Batch Multiple Sequence Alignment (MSA)</div>
+        <p class="help-text">
+            Once coordinates are locked, the engine decodes overlapping peak signals under a strict rule of 1-to-1 trace faithfulness.
+        </p>
+        <ul class="help-list">
+            <li><b>Mutual Trace Complementarity</b>: The engine splits dual-peak traces by cross-comparing them with the reference sequence template. Allele A tries to actively take the reference base character, while Allele B captures the alternative sequences. If a position is clean or lacks a secondary trace, both alleles receive identical base assignments, ensuring zero data loss.</li>
+            <li><b>Co-linear Equality</b>: Allele A and Allele B are constructed to be equal in length, acting as an un-gapped, 1-to-1 reflection of the physical trace peaks. Thees allele sequences are used for downstream alignments.</li>
+            <li><b>Consolidated Dashboard Visualization</b>: The engine displays the <b>Biallelic Batch Multiple Sequence Alignment Panel</b></li>
+            <li><b>Data Export</b>: Click <i>"Download FASTA"</i> or <i>"Download Alignment (.txt)"</i> to generate instant data packages compiled via client-side Blob object allocation.</li>
         </ul>
 
     </div>
@@ -2010,11 +2021,23 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
     const forceQueryRCEl = document.getElementById('forceQueryRC');
     const isForceRC = forceQueryRCEl ? forceQueryRCEl.checked : false;
 
-    // ─── 【修正点1: 複数ファイルの収集】 ───
-    const refObj = (rawReferencesList['0'] !== undefined) ? rawReferencesList['0'] : rawReferencesList;
-    const refSeq = (refObj.referenceSegment || refObj.sequence || refObj.seq || "").toUpperCase().replace(/[\r\n\s]/g, '').trim();
+    // ペアワイズ側と同じ共通関数でreferenceをパース
+    const refTextAreaEl = document.getElementById('refTextArea');
+    const activeRefs = parseTextAreaData(refTextAreaEl.value);
+    
+    if (!activeRefs || activeRefs.length === 0) {
+        alert("Please load or type a Target Reference sequence into the textbox first.");
+        return;
+    }
 
-    // 選択されたチェックボックスからファイルをすべて集める
+    // ─── 🎯 THE CORES ARCHITECTURAL FIX ───
+    // Extract the first structural object element out of the parsed list array grid
+    const refObj = activeRefs[0];
+    
+    // Safely parse the sequence property string using fallbacks corresponding to parseTextAreaData keys
+    let refSeq = (refObj.seq || refObj.sequence || refObj.referenceSegment || "").toUpperCase().replace(/[\r\n\s]/g, '').trim();
+
+    // 選択されたチェックボックスからクエリファイルをすべて集める
     const checkboxes = document.getElementById('queryChecklist').querySelectorAll('input[type="checkbox"]');
     const selectedQueriesToProcess = [];
     checkboxes.forEach(cb => {
@@ -2489,7 +2512,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                     matchedRefIdx -= leftExtendLen;
                     
                     // 過去のループで仮置きして書き連ねてしまった不完全な末尾文字をカットし、
-                    // これから行う超精密な「最長一致処理」で正しく上書きできるようにする
+                    // これから行う「最長一致処理」で正しく上書きできるようにする
                     alleleA_Seq = alleleA_Seq.substring(0, alleleA_Seq.length - leftExtendLen);
                     alleleB_Seq = alleleB_Seq.substring(0, alleleB_Seq.length - leftExtendLen);
                 }
@@ -2531,7 +2554,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
     
                     const charR = refSeq[refIdx].toUpperCase();
     
-                    if (sBase === '-' || pBase === sBase) {
+                    if (sBase === '-' || pBase === sBase || sBase === 'N') {
                         // シングルピーク
                         alleleA_Seq += pBase;
                         alleleB_Seq += pBase;
@@ -2557,8 +2580,12 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                 let sBase = track.secondary.toUpperCase();
     
                 alleleA_Seq += pBase;
-                alleleB_Seq += sBase;
-    
+                
+                if (sBase === '-' || sBase === 'N' || pBase === sBase) {
+                    alleleB_Seq += pBase;
+                } else {
+                    alleleB_Seq += sBase;
+                }    
                 currentQPos++;
                 lastMatchedRefIdx++;
             }
@@ -2664,32 +2691,58 @@ Allele B:     ${qB}
     // ─── 🎯 【Biallelic一括多重アラインメント（MSA）の生成】 ───
     if (msaBatchResultsPool.length > 0) {
         console.log(`🧬 [HORIZONTAL CANVAS MATRIX]: Merging ${msaBatchResultsPool.length} phased templates...`);
-        const msaRows = generateBiallelicBatchMSA(msaBatchResultsPool, refSeq);
+        
+        const msaPayload = generateBiallelicBatchMSA(msaBatchResultsPool, refSeq);
+        const msaRows = msaPayload?.rows || msaPayload || [];
+        
+        // ─── 📥 【修正の核心：その場でダウンロード用テキストを100%確実に自動生成】 ───
+        let fastaRawText = `>Master_Reference\n${refSeq}\n`;
+        let alignRawText = `Biallelic Batch Multiple Sequence Alignment\n`;
+        alignRawText += `Generated: ${new Date().toLocaleString()}\n`;
+        alignRawText += `=". =========================================================\n\n`;
+
+        // 1. FASTA形式テキストのビルド (GaplessなアレルAとBを交互に格納)
+        msaBatchResultsPool.forEach(sample => {
+            const cleanName = sample.fileName.replace(/[\s\(\)]/g, '_');
+            fastaRawText += `>${cleanName}_Allele_A\n${sample.data.alleleA_Seq}\n`;
+            fastaRawText += `>${cleanName}_Allele_B\n${sample.data.alleleB_Seq}\n`;
+        });
+
+        // 2. 画面表示用アラインメントTXTテキストのビルド (msaRowsをそのまま保存)
+        if (Array.isArray(msaRows)) {
+            msaRows.forEach(row => {
+                alignRawText += `${row.label.padEnd(35, ' ')}: ${row.sequence}\n`;
+            });
+        }
+
+        // 3. Blob オブジェクトURL の発行
+        const blobF = new Blob([fastaRawText], { type: 'text/plain;charset=utf-8' });
+        const fastaDownloadUrl = URL.createObjectURL(blobF);
+        
+        const blobA = new Blob([alignRawText], { type: 'text/plain;charset=utf-8' });
+        const alignDownloadUrl = URL.createObjectURL(blobA);
 
         if (msaRows && msaRows.length > 0) {
             masterMsaHtmlContainer = `
                 <div style="background: #ffffff; padding: 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: #111; margin-top: 10px; margin-bottom: 25px; border: 1px solid #cbd5e0;">
-                    
-                    <!-- 📥 ファイルエクスポート用ボタンバー（FASTA & TXT：リファレンス内蔵版） -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
                         <div>
-                            <h3 style="margin: 0; color: #2c3e50; font-family: sans-serif;">📊 CRISPR Biallelic Batch Multiple Sequence Alignment</h3>
-                            <p style="font-size: 11px; color: #64748b; margin: 2px 0 0 0; font-family: sans-serif;">
-                                All sample alleles are locked horizontally under the exact same reference column footprint coordinate tracking index. Gaps (-) represent deletion tracks.
-                            </p>
+                            <h3 style="margin: 0; color: #2c3e50; font-family: sans-serif;">📊 ③ Biallelic Batch Multiple Sequence Alignment</h3>
+                            <p style="font-size: 11px; color: #64748b; margin: 2px 0 0 0; font-family: sans-serif;">All sample alleles are locked horizontally under the exact same reference tracking index.</p>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <!-- 💡 前のステップで作成した変数（fastaBlobBase64等）がお手元の環境でそのまま定義されている前提で埋め込みます -->
-                            <a href="data:text/plain;charset=utf-8;base64,${typeof fastaBlobBase64 !== 'undefined' ? fastaBlobBase64 : ''}" download="crispr_phased_alleles_gapless.fasta" 
-                               style="display: inline-flex; align-items: center; background: #27ae60; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                📥 Download FASTA (Gapless)
+                            <!-- 💡 新しく生成した絶対に空にならないURLをセット -->
+                            <a href="${fastaDownloadUrl}" download="phased_alleles_gapless.fasta" 
+                               style="display: inline-flex; align-items: center; background: #27ae60; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif;">
+                                📥 Download FASTA
                             </a>
-                            <a href="data:text/plain;charset=utf-8;base64,${typeof alignBlobBase64 !== 'undefined' ? alignBlobBase64 : ''}" download="crispr_batch_msa_alignment.txt" 
-                               style="display: inline-flex; align-items: center; background: #2980b9; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1);;">
+                            <a href="${alignDownloadUrl}" download="batch_msa_alignment.txt" 
+                               style="display: inline-flex; align-items: center; background: #2980b9; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif;">
                                 📥 Download Alignment (.txt)
                             </a>
                         </div>
                     </div>
+
 
                     <div style="position: relative; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: pre; background: #1e1e1e; color: #ffffff !important; padding: 16px; border-radius: 4px; border: 1px solid #111; overflow-x: auto; font-size: 13px; line-height: 1.7; letter-spacing: 0px;">`;
 
