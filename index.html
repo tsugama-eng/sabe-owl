@@ -932,7 +932,7 @@
         svgString += '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "' + OFFICIAL_DTD_URL + '">\n';
         svgString += '<svg xmlns:xlink="' + OFFICIAL_XLINK_XMLNS + '" width="1000" height="450" viewBox="0 0 1000 450" xmlns="' + OFFICIAL_SVG_XMLNS + '" version="1.1">\n';
 
-        svgString += ` <defs>\n  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt; font-family: sans-serif;}</style>\n </defs>\n`;
+        svgString += ` <defs>\n  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt; font-family: sans-serif;} .bar-path:hover { opacity: 0.75; cursor: pointer; }</style>\n </defs>\n`;
         
         // 1. Replicate figure background patch (patch_1)
         svgString += ` <g id="figure_1">\n  <g id="patch_1">\n   <path d="M 0 450 L 1000 450 L 1000 0 L 0 0 z" style="fill: #ffffff"/>\n  </g>\n`;
@@ -1001,10 +1001,11 @@
                 const xLeft = xPos - barWidthPixels / 2;
 
                 // Reconstruct exact solid vector bar shapes using standard path geometry coordinates
-                svgString += `    <path d="M ${xLeft} ${yBottomPos} L ${xLeft + barWidthPixels} ${yBottomPos} L ${xLeft + barWidthPixels} ${yTopPos} L ${xLeft} ${yTopPos} z" fill="${patternColor}" stroke="#000000" stroke-width="0.5">\n`;
-                svgString += `     <title>Pos: ${pos} | Mutation: ${pattern} | Count: ${freqVal}\nAmino Acid Profile: ${matchRecord.amino_acid_mutation}</title>\n`;
+              // 🎯 修正後: 仕様に完全準拠させ、classとtitleを美しく内包
+                svgString += `    <path class="bar-path" d="M ${xLeft} ${yBottomPos} L ${xLeft + barWidthPixels} ${yBottomPos} L ${xLeft + barWidthPixels} ${yTopPos} L ${xLeft} ${yTopPos} z" fill="${patternColor}" stroke="#000000" stroke-width="0.5">\n`;
+                svgString += `      <title>Position: ${pos} bp\nMutation: ${pattern}\nFrequency Count: ${freqVal}\nAmino Acid: ${matchRecord.amino_acid_mutation || 'N/A'}</title>\n`;
                 svgString += `    </path>\n`;
-
+                
                 positionBottomsRegistry[pos] = barTop;
             });
         });
