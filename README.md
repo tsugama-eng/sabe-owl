@@ -65,9 +65,9 @@ Clicking *"Run Phasing"* initiates a specialized, high-fidelity dual-allele deco
 ## 6. One-to-One Peak Allocation & Biallelic Batch Multiple Sequence Alignment (MSA)
 Once coordinates are locked, the engine decodes overlapping peak signals under a strict rule of 1-to-1 trace faithfulness.
 
-*   **Mutual Trace Complementarity**: The engine splits dual-peak traces by cross-comparing them with the reference sequence template. Allele A actively takes the reference base character, while Allele B captures the alternative sequence track. If a position is clean or lacks a secondary trace, both alleles receive identical base assignments, ensuring zero data loss or artificial mutations.
+*   **Mutual Trace Complementarity**: The engine splits dual-peak traces into Allele A and Allele B by cross-comparing them with the reference sequence template. If a position is clean or lacks a secondary trace, both alleles receive identical base assignments, ensuring zero data loss or artificial mutations.
 *   **Co-linear Equality**: Allele A and Allele B are constructed to be perfectly equal in length, acting as an un-gapped, 1-to-1 reflection of the physical trace peaks. These pure allele sequences are used for downstream alignments.
-*   **Consolidated Dashboard Visualization**: The engine automatically hides the legacy aggregator and displays the **Biallelic Batch Multiple Sequence Alignment Panel** (`#msaPanel`), locking all sample tracks horizontally under a single global tracking index.
+*   **Consolidated Dashboard Visualization**: The engine automatically hides the legacy aggregator and displays the **Biallelic Batch Multiple Sequence Alignment Panel**, locking all sample tracks horizontally under a single global tracking index.
 *   **Data Export**: Click *"Download FASTA"* or *"Download Alignment (.txt)"* to generate instant data packages compiled via clean, client-side Blob object allocation.
 
 ---

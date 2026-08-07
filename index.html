@@ -2436,6 +2436,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
         // タイムラインの走査（currentQPos）は、予定通り手動（または自動）の開始位置からスタートします
         let currentQPos = mutationStartQPos;
         let lastMatchedRefIdx = refMatchStartIdx;
+        let frontRefIdx = refMatchStartIdx;
     
         while (currentQPos < realAb1Tracks.length) {
             const currentWindow = Math.min(windowSize, realAb1Tracks.length - currentQPos);
@@ -2454,7 +2455,8 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             
             // 2. 🗺️【周辺探索 ➔ 見つからなければ広域救済スキャン】
             // まずは直前位置の周辺（前後30bp）を人間の目で探すようにスキャン
-            let searchStart = Math.max(0, lastMatchedRefIdx - 30);
+            //let searchStart = Math.max(0, lastMatchedRefIdx - 30);
+            let searchStart = frontRefIdx; //最後にマッチしたリファレンス上の部位の終端を新たなローカル探索開始位置とする
             let searchEnd = Math.min(refSeq.length, lastMatchedRefIdx + 30 + currentWindow);
             let localRefSubStr = refSeq.substring(searchStart, searchEnd);
             let localMatch = localRefSubStr.match(slidingRegex);
@@ -2467,7 +2469,8 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             } else {
                 // もし周辺で見つからなかった場合（最初の警告が出た時など）、
                 // 直前位置の少し手前からリファレンスの末尾まで、広い範囲で再探索を試みる（広域救済）
-                let globalSearchStart = Math.max(0, lastMatchedRefIdx - 50);
+                //let globalSearchStart = Math.max(0, lastMatchedRefIdx - 50);
+                let globalSearchStart = 0;
                 let globalRefSubStr = refSeq.substring(globalSearchStart);
                 let globalMatch = globalRefSubStr.match(slidingRegex);
     
@@ -2495,6 +2498,9 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
     
                     let pBase = track.primary.toUpperCase();
                     let sBase = track.secondary.toUpperCase();
+
+                    const charR_raw = refSeq[checkRefIdx]; 
+                    if (!charR_raw) break; // リファレンスの端に達したらループを抜ける
     
                     const charR = refSeq[checkRefIdx].toUpperCase();
     
@@ -2558,19 +2564,31 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                         // シングルピーク
                         alleleA_Seq += pBase;
                         alleleB_Seq += pBase;
-                    } else {
-                        // ダブルピーク：★大前提ルール（Aはリファレンス文字、Bはその裏の文字）
+                    } else if (matchedRefIdx >= frontRefIdx) {
+                        // ダブルピーク：リファレンスで既にカバーされた領域の終端とマッチ領域開始点が同じか、後者がそれより大きい場合
                         alleleA_Seq += charR;
                         if (pBase === charR) {
                             alleleB_Seq += sBase;
                         } else {
                             alleleB_Seq += pBase;
                         }
+                    } else {
+                        // ダブルピーク：リファレンスで既にカバーされた領域の終端よりもマッチ領域開始点が小さい場合
+                        alleleB_Seq += charR;
+                        if (pBase === charR) {
+                            alleleA_Seq += sBase;
+                        } else {
+                            alleleA_Seq += pBase;
+                        }
                     }
                 }
     
                 // タイムライン（クエリ現在地）を処理したブロックの分だけ大きく進める
                 currentQPos += extendLen;
+                
+                if (matchedRefIdx + extendLen > frontRefIdx) {
+                    frontRefIdx = matchedRefIdx + extendLen - 1;
+                }
     
             } else {
                 // ❌ 周辺・広域ともにマッチしなかった（どちらかわからない）場合
