@@ -1711,7 +1711,7 @@ function analyzeMainSequenceAnchor(mainSeq, refSeq, windowSize = 20) {
 
     // 🛡️ 足切り：本物の一致領域の長さが窓サイズ未満なら打ち切り
     if (realMatchLen < windowSize) {
-        return { success: false, reason: `ローカルアラインメント一致領域(${realMatchLen}bp)が窓サイズ(${windowSize}bp)未満のため解析を打ち切ります。` };
+        return { success: false, reason: `Local alignment size (${realMatchLen}bp) is smaller than the regex window size (${windowSize}bp). Please check the input data or change settings.` };
     }
 
     return {
@@ -2259,7 +2259,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             anchorResult = analyzeMainSequenceAnchor(mainSeq, refSeq, windowSize);
         }
         
-        if (!anchorResult.success) {
+        if (isNaN(manualVal) && !anchorResult.success) {
             if (statusEl) statusEl.innerHTML = `<span style="color: #d9534f; font-weight:bold;">❌ ${anchorResult.reason}</span>`;
             return;
         }
@@ -2269,7 +2269,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             console.log(`🚨 [USER OVERRIDE]: Query Reverse Complement mode FORCED via UI checkbox.`);
         }
     
-        // クエリがRC（逆相補鎖）アラインメントだった場合は、本物のトラック配列も向きと文字をひっくり返す
+        // クエリがRC（逆相補鎖）アラインメントだった場合は、リファレンスの向きと文字をひっくり返す
         if (anchorResult.isRC) {
             refSeq = reverseComplement(refSeq);
         }
@@ -2324,8 +2324,8 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                     if (inZeroZone && currentRate >= 10) {
                         // 先行する5箇所の窓の平均率をサンプリング
                         const downstreamRates = ratesArray.slice(i, i + 6);
-    // 🛠️ この1行だけをピンポイントで差し替えてください
-    const averageHeight = downstreamRates.reduce((sum, r) => sum + r, 0) / downstreamRates.length;
+                        // 🛠️ この1行だけをピンポイントで差し替えてください
+                        const averageHeight = downstreamRates.reduce((sum, r) => sum + r, 0) / downstreamRates.length;
                         
                         // 💡 条件：ただの1点ノイズ(SNP)ならすぐにまた0%に墜落する。
                         // 平均の高さが15%以上を維持し、かつ5窓先の到達点が20%を越えて高止まりに向かっているなら、これは本物のインデルの斜面！
@@ -2436,7 +2436,10 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
         // タイムラインの走査（currentQPos）は、予定通り手動（または自動）の開始位置からスタートします
         let currentQPos = mutationStartQPos;
         let lastMatchedRefIdx = refMatchStartIdx;
-        let frontRefIdx = refMatchStartIdx;
+
+        let frontRefIdxA = refMatchStartIdx;
+        let frontRefIdxB = refMatchStartIdx;
+        let priorAllele = 'A';
     
         while (currentQPos < realAb1Tracks.length) {
             const currentWindow = Math.min(windowSize, realAb1Tracks.length - currentQPos);
@@ -2456,7 +2459,10 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
             // 2. 🗺️【周辺探索 ➔ 見つからなければ広域救済スキャン】
             // まずは直前位置の周辺（前後30bp）を人間の目で探すようにスキャン
             //let searchStart = Math.max(0, lastMatchedRefIdx - 30);
-            let searchStart = frontRefIdx; //最後にマッチしたリファレンス上の部位の終端を新たなローカル探索開始位置とする
+            let searchStart = frontRefIdxA; //最後にマッチしたリファレンス上の部位の終端を新たなローカル探索開始位置とする
+            if (priorAllele === 'B') {
+                searchStart = frontRefIdxB;
+            }
             let searchEnd = Math.min(refSeq.length, lastMatchedRefIdx + 30 + currentWindow);
             let localRefSubStr = refSeq.substring(searchStart, searchEnd);
             let localMatch = localRefSubStr.match(slidingRegex);
@@ -2478,6 +2484,12 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                     matchedRefIdx = globalSearchStart + globalMatch.index;
                     console.log(`🎯 [GLOBAL RESCUE SUCCESS] Re-anchored phase lock at absolute Ref Pos: ${matchedRefIdx + 1}`);
                 }
+            }
+    
+            if (matchedRefIdx < frontRefIdxA) {
+                priorAllele = 'B';
+            } else if (matchedRefIdx < frontRefIdxB) {
+                priorAllele = 'A';
             }
     
             // 検索（周辺または広域）がヒットした場合のみ、双方向の引き伸ばし処理を実行
@@ -2564,7 +2576,7 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                         // シングルピーク
                         alleleA_Seq += pBase;
                         alleleB_Seq += pBase;
-                    } else if (matchedRefIdx >= frontRefIdx) {
+                    } else if (priorAllele === 'A') {
                         // ダブルピーク：リファレンスで既にカバーされた領域の終端とマッチ領域開始点が同じか、後者がそれより大きい場合
                         alleleA_Seq += charR;
                         if (pBase === charR) {
@@ -2586,9 +2598,12 @@ document.getElementById('phasingRunBtn').addEventListener('click', async () => {
                 // タイムライン（クエリ現在地）を処理したブロックの分だけ大きく進める
                 currentQPos += extendLen;
                 
-                if (matchedRefIdx + extendLen > frontRefIdx) {
-                    frontRefIdx = matchedRefIdx + extendLen - 1;
+                if (matchedRefIdx + extendLen > frontRefIdxA && priorAllele === 'A') {
+                    frontRefIdxA = matchedRefIdx + extendLen - 1;
+                } else if (matchedRefIdx + extendLen > frontRefIdxB && priorAllele === 'B') {
+                    frontRefIdxB = matchedRefIdx + extendLen - 1;
                 }
+
     
             } else {
                 // ❌ 周辺・広域ともにマッチしなかった（どちらかわからない）場合
