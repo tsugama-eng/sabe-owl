@@ -2761,8 +2761,8 @@ Allele B:     ${qB}
         
         // ファイル名に使えない怪しい文字を安全に置換
         const safeFileName = currentRefName.replace(/[^A-Za-z0-9_\-\.]/g, '_');
-        const fastaFileName = `${safeFileName}_mytool.fasta`;
-        const txtFileName   = `${safeFileName}_msa_alignment.txt`;
+        const fastaFileName = `${safeFileName}_HELPA.fasta`;
+        const txtFileName   = `${safeFileName}_MSA_HELPA.txt`;
 
         if (msaRows && msaRows.length > 0) {
             masterMsaHtmlContainer = `
