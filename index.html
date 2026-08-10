@@ -2755,6 +2755,15 @@ Allele B:     ${qB}
         const blobA = new Blob([alignRawText], { type: 'text/plain;charset=utf-8' });
         const alignDownloadUrl = URL.createObjectURL(blobA);
 
+        const rawRefText = document.getElementById('refTextArea')?.value || "";
+        const parsedRefs = parseTextAreaData(rawRefText);
+        const currentRefName = (parsedRefs && parsedRefs.length > 0) ? parsedRefs[0].name.trim() : "phased_alleles";
+        
+        // ファイル名に使えない怪しい文字を安全に置換
+        const safeFileName = currentRefName.replace(/[^A-Za-z0-9_\-\.]/g, '_');
+        const fastaFileName = `${safeFileName}_mytool.fasta`;
+        const txtFileName   = `${safeFileName}_msa_alignment.txt`;
+
         if (msaRows && msaRows.length > 0) {
             masterMsaHtmlContainer = `
                 <div style="background: #ffffff; padding: 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: #111; margin-top: 10px; margin-bottom: 25px; border: 1px solid #cbd5e0;">
@@ -2765,11 +2774,11 @@ Allele B:     ${qB}
                         </div>
                         <div style="display: flex; gap: 8px;">
                             <!-- 💡 新しく生成した絶対に空にならないURLをセット -->
-                            <a href="${fastaDownloadUrl}" download="phased_alleles_gapless.fasta" 
+                            <a href="${fastaDownloadUrl}" download="${fastaFileName}" 
                                style="display: inline-flex; align-items: center; background: #27ae60; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif;">
                                 📥 Download FASTA
                             </a>
-                            <a href="${alignDownloadUrl}" download="batch_msa_alignment.txt" 
+                            <a href="${alignDownloadUrl}" download="${txtFileName}" 
                                style="display: inline-flex; align-items: center; background: #2980b9; color: #ffffff !important; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px; text-decoration: none !important; font-family: sans-serif;">
                                 📥 Download Alignment (.txt)
                             </a>
