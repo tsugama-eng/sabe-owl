@@ -1,4 +1,4 @@
-# SAVE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)
+# SABE-OWL: Sequence Analyzer & Viewer Engine on the Web (Lite)
 
 This platform acts as an un-gated, client-side single-page application (SPA) designed for rapid batch sequence mutation analytics, population frequency compounding, and scalable vector graphics (SVG) generation. By implementing all algorithmic components directly in the browser runtime, it eliminates remote data transfers, preserving data privacy.
 
@@ -9,7 +9,7 @@ This platform acts as an un-gated, client-side single-page application (SPA) des
 You can use this application instantly either via your web browser or completely offline on your local machine. No installation or registration is required.
 
 ### Option 1: Use the Web Application
-* **Access URL**: [https://webpark2116.sakura.ne.jp/save-owl/]
+* **Access URL**: [https://webpark2116.sakura.ne.jp/sabe-owl/]
 * *100% Client-side runtime. Your sequence data is processed entirely within your browser and is never transmitted to any external server.*
 
 ### Option 2: Run Locally / Offline
