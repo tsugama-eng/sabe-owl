@@ -9,7 +9,7 @@ This platform acts as an un-gated, client-side single-page application (SPA) des
 You can use this application instantly either via your web browser or completely offline on your local machine. No installation or registration is required.
 
 ### Option 1: Use the Web Application
-* **Access URL**: [https://webpark2116.sakura.ne.jp/sabe-owl/]
+* **Access URL**: [https://tsugama-eng.github.io/sabe-owl/]
 * *100% Client-side runtime. Your sequence data is processed entirely within your browser and is never transmitted to any external server.*
 
 ### Option 2: Run Locally / Offline
