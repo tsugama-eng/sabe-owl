@@ -1,5 +1,9 @@
 # SABE-OWL: Sequence Analysis Batch Engine on the Web (Lite)
 
+<p align="center">
+  <img src="sabe-owl.png" alt="SABE-OWL Logo" width="150">
+</p>
+
 This platform acts as an un-gated, client-side single-page application (SPA) designed for rapid batch sequence mutation analytics, population frequency compounding, and scalable vector graphics (SVG) generation. By implementing all algorithmic components directly in the browser runtime, it eliminates remote data transfers, preserving data privacy.
 
 ---
