@@ -120,3 +120,8 @@ Because Sanger trace deconvolution relies on locating automated mathematical bou
 2. **Optimize via Iterative Testing (The "Push & Compare" Workflow)**: Perfect coordinates may not be obtained on your first try.
    * **The Dynamic Behavior**: Whether a file triggers an automatic orientation flip or is forced via the *Query RC* checkbox, the backend handles the sequence inversion instantly. The best way to verify your data would be to test different parameters fluidly.
    * **The Best Practice**: Simply adjust your variables (such as shifting the *1. Start Position*, tweaking the *4. Secondary Peak Ratio*, or toggling *Query RC*) and click ***"Run Phasing"*** multiple times. Inspect both the individual **pairwise alignment blocks** and the global **Biallelic Batch Multiple Sequence Alignment Panel**. When the alignments are long and clean, the phase-lock parameters would be optimal.
+
+---
+
+## 9. Reference
+Tsugama D (2026) SABE-OWL: sequence analysis batch engine on the web (Lite). SoftwareX 36: 103092. https://doi.org/10.1016/j.softx.2026.103092
