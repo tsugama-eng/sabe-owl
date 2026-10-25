@@ -95,7 +95,7 @@ The `demo/` folder contains real-world validation datasets designed to test the 
   * **Testing Orientation Flexibility**: This folder contains true heterozygous mixed-trace files sequenced from both **Forward** and **Reverse Complement (RC)** strand configurations. 
 
 <p align="center">
-  <video src="https://github.com/tsugama-eng/sabe-owl/Screencast1.mp4" width="80%" controls></video>
+  <video src="https://github.com/tsugama-eng/sabe-owl/main/blob/Screencast1.mp4" width="80%" controls></video>
 </p>
 
 ---
