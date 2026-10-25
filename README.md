@@ -95,7 +95,7 @@ The `demo/` folder contains real-world validation datasets designed to test the 
   * **Testing Orientation Flexibility**: This folder contains true heterozygous mixed-trace files sequenced from both **Forward** and **Reverse Complement (RC)** strand configurations. 
 
 <p align="center">
-  <video src="【ここに自動生成されたURLを貼り付ける】" width="80%" controls></video>
+  <video src="Screencast1.mp4" width="80%" controls></video>
 </p>
 
 ---
