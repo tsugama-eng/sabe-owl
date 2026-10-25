@@ -94,6 +94,10 @@ The `demo/` folder contains real-world validation datasets designed to test the 
 
   * **Testing Orientation Flexibility**: This folder contains true heterozygous mixed-trace files sequenced from both **Forward** and **Reverse Complement (RC)** strand configurations. 
 
+<p align="center">
+  <video src="Screencast1.mp4" width="80%" controls></video>
+</p>
+
 ---
 
 ### Step-by-Step Heterozygous Phase Analysis Tutorial
